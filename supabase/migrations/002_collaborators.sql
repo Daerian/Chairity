@@ -109,9 +109,7 @@ CREATE POLICY "guests_access" ON guests
 -- Tables
 DROP POLICY IF EXISTS "tables_owner" ON seating_tables;
 CREATE POLICY "tables_access" ON seating_tables
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM seating_tables st WHERE st.id = seating_tables.id AND is_event_member(st.event_id))
-  );
+  FOR ALL USING (is_event_member(event_id));
 
 -- Seat assignments
 DROP POLICY IF EXISTS "assignments_owner" ON seat_assignments;
