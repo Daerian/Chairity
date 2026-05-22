@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-inter: 'Inter', system-ui, sans-serif;
+  --font-playfair: 'Playfair Display', Georgia, serif;
+}
+
+body {
+  background-color: #faf7f2;
+  color: #2d2520;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f5ede0; border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: #d4a843; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #b87d18; }
+
+@layer utilities {
+  .drag-handle { cursor: grab; }
+  .drag-handle:active { cursor: grabbing; }
+}
