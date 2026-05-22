@@ -70,25 +70,19 @@ export default function TableConfigModal({ eventId, tables, onClose, onSave }: P
     const toUpdate = activeRows.filter((r) => r.id !== null)
     const toInsert = activeRows.filter((r) => r.id === null)
 
-    const ops: Promise<unknown>[] = []
-
     if (toDelete.length) {
-      ops.push(supabase.from('seating_tables').delete().in('id', toDelete))
+      await supabase.from('seating_tables').delete().in('id', toDelete)
     }
     for (const r of toUpdate) {
-      ops.push(
-        supabase.from('seating_tables').update({ name: r.name.trim(), capacity: r.capacity, sort_order: r.sort_order }).eq('id', r.id!)
-      )
+      await supabase.from('seating_tables')
+        .update({ name: r.name.trim(), capacity: r.capacity, sort_order: r.sort_order })
+        .eq('id', r.id!)
     }
     if (toInsert.length) {
-      ops.push(
-        supabase.from('seating_tables').insert(
-          toInsert.map((r) => ({ event_id: eventId, name: r.name.trim(), capacity: r.capacity, sort_order: r.sort_order }))
-        )
+      await supabase.from('seating_tables').insert(
+        toInsert.map((r) => ({ event_id: eventId, name: r.name.trim(), capacity: r.capacity, sort_order: r.sort_order }))
       )
     }
-
-    await Promise.all(ops)
 
     const { data } = await supabase.from('seating_tables').select('*').eq('event_id', eventId).order('sort_order')
     setSaving(false)
@@ -161,7 +155,7 @@ export default function TableConfigModal({ eventId, tables, onClose, onSave }: P
               <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
                 {rows.map((row, idx) => (
                   <div
-                    key={idx}
+                    key={row.id ?? `new-${idx}`}
                     className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${
                       row.toDelete ? 'opacity-40 border-red-200 bg-red-50' : 'border-gray-200 bg-white'
                     }`}

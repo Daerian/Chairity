@@ -123,8 +123,8 @@ export default function CSVImport({ eventId, existingNames, onClose, onImport }:
                 )}
               </div>
               <div className="max-h-36 overflow-y-auto space-y-0.5">
-                {newNames.slice(0, 50).map((name, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-gray-600 py-0.5">
+                {newNames.slice(0, 50).map((name) => (
+                  <div key={name} className="flex items-center gap-2 text-xs text-gray-600 py-0.5">
                     <Check size={10} className="text-green-400 shrink-0" />
                     {name}
                   </div>

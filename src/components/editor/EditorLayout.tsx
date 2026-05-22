@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -113,42 +113,35 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
     })
 
     // Persist
-    const ops: Promise<unknown>[] = []
-
-    if (fromAssignment) {
-      ops.push(
-        supabase
+    const persist = async () => {
+      if (fromAssignment) {
+        await supabase
           .from('seat_assignments')
           .update({ table_id: toTableId, seat_number: toSeat })
           .eq('id', fromAssignment.id)
-      )
-    } else {
-      ops.push(
-        supabase
+      } else {
+        await supabase
           .from('seat_assignments')
           .insert({ event_id: event.id, table_id: toTableId, guest_id: guestId, seat_number: toSeat })
-      )
-    }
+      }
 
-    if (targetGuestId && drag.type === 'seated' && drag.tableId && drag.seatNumber != null) {
-      const targetAssignment = assignmentByGuest.get(targetGuestId)
-      if (targetAssignment) {
-        ops.push(
-          supabase
+      if (targetGuestId && drag.type === 'seated' && drag.tableId && drag.seatNumber != null) {
+        const targetAssignment = assignmentByGuest.get(targetGuestId)
+        if (targetAssignment) {
+          await supabase
             .from('seat_assignments')
             .update({ table_id: drag.tableId!, seat_number: drag.seatNumber! })
             .eq('id', targetAssignment.id)
-        )
-      }
-    } else if (targetGuestId) {
-      // Target seat had a guest but we're not swapping — unassign them
-      const targetAssignment = assignmentByGuest.get(targetGuestId)
-      if (targetAssignment) {
-        ops.push(supabase.from('seat_assignments').delete().eq('id', targetAssignment.id))
+        }
+      } else if (targetGuestId) {
+        const targetAssignment = assignmentByGuest.get(targetGuestId)
+        if (targetAssignment) {
+          await supabase.from('seat_assignments').delete().eq('id', targetAssignment.id)
+        }
       }
     }
 
-    await Promise.all(ops)
+    await persist()
     await refetchAssignments()
   }
 
