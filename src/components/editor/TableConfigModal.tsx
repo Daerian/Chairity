@@ -60,18 +60,26 @@ export default function TableConfigModal({ eventId, tables, onClose, onSave }: P
     const toUpdate = activeRows.filter((r) => r.id !== null)
     const toInsert = activeRows.filter((r) => r.id === null)
 
-    if (toDelete.length) await supabase.from('seating_tables').delete().in('id', toDelete)
+    if (toDelete.length) {
+      const { error: delErr } = await supabase.from('seating_tables').delete().in('id', toDelete)
+      if (delErr) { setError(delErr.message); setSaving(false); return }
+    }
     for (const r of toUpdate) {
-      await supabase.from('seating_tables').update({ name: r.name.trim(), capacity: r.capacity, sort_order: r.sort_order }).eq('id', r.id!)
+      const { error: updErr } = await supabase.from('seating_tables')
+        .update({ name: r.name.trim(), capacity: r.capacity, sort_order: r.sort_order })
+        .eq('id', r.id!)
+      if (updErr) { setError(updErr.message); setSaving(false); return }
     }
     if (toInsert.length) {
-      await supabase.from('seating_tables').insert(
+      const { error: insErr } = await supabase.from('seating_tables').insert(
         toInsert.map((r) => ({ event_id: eventId, name: r.name.trim(), capacity: r.capacity, sort_order: r.sort_order }))
       )
+      if (insErr) { setError(insErr.message); setSaving(false); return }
     }
 
-    const { data } = await supabase.from('seating_tables').select('*').eq('event_id', eventId).order('sort_order')
+    const { data, error: selErr } = await supabase.from('seating_tables').select('*').eq('event_id', eventId).order('sort_order')
     setSaving(false)
+    if (selErr) { setError(selErr.message); return }
     onSave((data ?? []) as SeatingTable[])
   }
 

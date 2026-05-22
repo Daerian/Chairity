@@ -35,13 +35,13 @@ export default function SeatSlot({ tableId, seatNumber, assignedGuest, guestMap,
   const availableGuests = Array.from(guestMap.values()).filter((g) => !seatedGuestIds.has(g.id) || g.id === assignedGuest?.id)
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       <div
         ref={setRef}
         style={assignedGuest ? { transform: CSS.Translate.toString(transform) } : undefined}
         {...(assignedGuest ? listeners : {})}
         {...(assignedGuest ? attributes : {})}
-        className={`flex items-center gap-1 px-2 py-1.5 rounded-md border text-xs min-h-[30px] transition-all select-none
+        className={`flex items-center gap-1 px-2 py-1.5 rounded-md border text-xs min-h-[30px] min-w-0 overflow-hidden transition-all select-none
           ${isDragging ? 'opacity-40' : ''}
           ${isOver ? 'border-gold-400 bg-gold-50 scale-[1.02]' : ''}
           ${assignedGuest
