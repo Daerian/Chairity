@@ -122,7 +122,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
       } else {
         await supabase
           .from('seat_assignments')
-          .insert({ event_id: event.id, table_id: toTableId, guest_id: guestId, seat_number: toSeat })
+          .insert({ table_id: toTableId, guest_id: guestId, seat_number: toSeat })
       }
 
       if (targetGuestId && drag.type === 'seated' && drag.tableId && drag.seatNumber != null) {
@@ -166,7 +166,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
       if (existing) {
         await supabase.from('seat_assignments').update({ table_id: tableId, seat_number: seatNumber }).eq('id', existing.id)
       } else {
-        await supabase.from('seat_assignments').insert({ event_id: event.id, table_id: tableId, guest_id: guestId, seat_number: seatNumber })
+        await supabase.from('seat_assignments').insert({ table_id: tableId, guest_id: guestId, seat_number: seatNumber })
       }
       await refetchAssignments()
     }
