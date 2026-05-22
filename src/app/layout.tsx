@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   description: 'Design beautiful event seating arrangements with drag-and-drop ease.',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: import('react').ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
       <body className="font-sans antialiased">{children}</body>
