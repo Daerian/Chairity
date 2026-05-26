@@ -273,6 +273,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
           <FloorPlanCanvas
             tables={tables}
             floorLayout={floorLayout}
+            guestMap={guestMap}
             assignmentBySeat={assignmentBySeat}
             onPositionChange={handleFloorPositionChange}
             onShapeChange={handleShapeChange}

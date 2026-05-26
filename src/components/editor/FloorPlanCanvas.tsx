@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Settings, Circle, Square, Printer } from 'lucide-react'
 import type { Guest, SeatingTable, FloorLayout } from '@/types'
 
@@ -23,6 +23,7 @@ function defaultPos(index: number): FloorPos {
 interface Props {
   tables: SeatingTable[]
   floorLayout: FloorLayout
+  guestMap: Map<string, Guest>
   assignmentBySeat: Map<string, string>
   onPositionChange: (tableId: string, x: number, y: number) => void
   onShapeChange: (tableId: string, shape: 'rectangle' | 'round') => void
@@ -31,7 +32,7 @@ interface Props {
 }
 
 export default function FloorPlanCanvas({
-  tables, floorLayout, assignmentBySeat,
+  tables, floorLayout, guestMap, assignmentBySeat,
   onPositionChange, onShapeChange, onFloorLayoutChange, onOpenTableConfig,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -43,9 +44,17 @@ export default function FloorPlanCanvas({
   const [roomH, setRoomH] = useState(floorLayout.room_height)
   const [snapGrid, setSnapGrid] = useState(floorLayout.snap_grid)
 
-  const gridBg = floorLayout.snap_grid > 0 ? {
+  // Keep local form state in sync with committed prop
+  useEffect(() => {
+    setRoomW(floorLayout.room_width)
+    setRoomH(floorLayout.room_height)
+    setSnapGrid(floorLayout.snap_grid)
+  }, [floorLayout])
+
+  // Use local snapGrid so the grid previews immediately as the select changes
+  const gridBg = snapGrid > 0 ? {
     backgroundImage: `linear-gradient(rgba(180,150,100,0.1) 1px,transparent 1px),linear-gradient(90deg,rgba(180,150,100,0.1) 1px,transparent 1px)`,
-    backgroundSize: `${floorLayout.snap_grid}px ${floorLayout.snap_grid}px`,
+    backgroundSize: `${snapGrid}px ${snapGrid}px`,
   } : {}
 
   function tableSize(shape: SeatingTable['shape']): { w: number; h: number } {
@@ -59,8 +68,8 @@ export default function FloorPlanCanvas({
   }
 
   function snap(val: number): number {
-    if (floorLayout.snap_grid <= 0) return val
-    return Math.round(val / floorLayout.snap_grid) * floorLayout.snap_grid
+    if (snapGrid <= 0) return val
+    return Math.round(val / snapGrid) * snapGrid
   }
 
   function startDrag(e: React.PointerEvent, table: SeatingTable, index: number) {
@@ -158,7 +167,7 @@ export default function FloorPlanCanvas({
                 </label>
               </div>
               <label className="space-y-1 block">
-                <span className="text-xs text-event-muted">Snap grid</span>
+                <span className="text-xs text-event-muted">Snap grid (updates live)</span>
                 <select value={snapGrid} onChange={(e) => setSnapGrid(Number(e.target.value))}
                   className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-gold-400">
                   <option value={0}>Free (no snap)</option>
@@ -195,76 +204,111 @@ export default function FloorPlanCanvas({
             return (
               <div
                 key={table.id}
-                className={`absolute border-2 select-none transition-shadow
+                className={`group absolute border-2 select-none transition-shadow
                   ${isRound ? 'rounded-full' : 'rounded-xl'}
-                  ${draggingId === table.id ? 'shadow-xl z-10 cursor-grabbing' : 'shadow-card hover:shadow-card-hover cursor-grab z-0'}
+                  ${draggingId === table.id
+                    ? 'shadow-xl z-10 cursor-grabbing'
+                    : 'shadow-card hover:shadow-card-hover cursor-grab z-0 hover:z-20'}
                   ${occ > 0 ? 'border-gold-300 bg-white' : 'border-gray-200 bg-white'}
                 `}
                 style={{ left: pos.x, top: pos.y, width: w, height: h }}
                 onPointerDown={(e) => startDrag(e, table, i)}
               >
                 {isRound ? (
-                  // Round table: seats around circumference
                   <div className="absolute inset-0">
-                    {/* Center info */}
+                    {/* Center label — no pointer events so drag still works from center */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 pointer-events-none">
                       <span className="font-semibold text-xs text-gray-800 text-center px-3 truncate max-w-full">{table.name}</span>
                       <span className="text-[10px] text-event-muted">{occ}/{table.capacity}</span>
                     </div>
-                    {/* Seat dots */}
+                    {/* Seat dots — pointer-events enabled so title tooltip works */}
                     {Array.from({ length: table.capacity }, (_, s) => {
                       const angle = (s / table.capacity) * 2 * Math.PI - Math.PI / 2
                       const r = ROUND_SIZE / 2 - 10
                       const cx = ROUND_SIZE / 2 + r * Math.cos(angle)
                       const cy = ROUND_SIZE / 2 + r * Math.sin(angle)
-                      const filled = assignmentBySeat.has(`${table.id}::${s + 1}`)
+                      const seatKey = `${table.id}::${s + 1}`
+                      const guestId = assignmentBySeat.get(seatKey)
+                      const guestName = guestId ? guestMap.get(guestId)?.name : undefined
+                      const filled = !!guestId
                       return (
                         <div
                           key={s}
-                          className={`absolute w-3 h-3 rounded-full border pointer-events-none ${filled ? 'bg-gold-400 border-gold-500' : 'bg-gray-100 border-gray-300'}`}
+                          className={`absolute w-3 h-3 rounded-full border cursor-default ${filled ? 'bg-gold-400 border-gold-500' : 'bg-gray-100 border-gray-300'}`}
                           style={{ left: cx - 6, top: cy - 6 }}
+                          title={guestName}
+                          onPointerDown={(e) => e.stopPropagation()}
                         />
                       )
                     })}
                   </div>
                 ) : (
                   // Rectangular table: seats top + bottom rows
-                  <div className="absolute inset-0 flex flex-col justify-between py-1 px-2 pointer-events-none">
+                  <div className="absolute inset-0 flex flex-col justify-between py-1 px-2">
                     {/* Top seats */}
                     <div className="flex justify-around">
                       {Array.from({ length: seatsPerRow }, (_, s) => {
-                        const filled = assignmentBySeat.has(`${table.id}::${s + 1}`)
+                        const seatKey = `${table.id}::${s + 1}`
+                        const guestId = assignmentBySeat.get(seatKey)
+                        const guestName = guestId ? guestMap.get(guestId)?.name : undefined
+                        const filled = !!guestId
                         return (
-                          <div key={s} className={`w-3 h-3 rounded-full border ${filled ? 'bg-gold-400 border-gold-500' : 'bg-gray-100 border-gray-300'}`} />
+                          <div
+                            key={s}
+                            className={`w-3 h-3 rounded-full border cursor-default ${filled ? 'bg-gold-400 border-gold-500' : 'bg-gray-100 border-gray-300'}`}
+                            title={guestName}
+                            onPointerDown={(e) => e.stopPropagation()}
+                          />
                         )
                       })}
                     </div>
-                    {/* Center info */}
-                    <div className="flex flex-col items-center gap-0.5">
+                    {/* Center label */}
+                    <div className="flex flex-col items-center gap-0.5 pointer-events-none">
                       <span className="font-semibold text-xs text-gray-800 truncate max-w-[90%]">{table.name}</span>
                       <span className="text-[10px] text-event-muted">{occ}/{table.capacity}</span>
                     </div>
                     {/* Bottom seats */}
                     <div className="flex justify-around">
                       {Array.from({ length: table.capacity - seatsPerRow }, (_, s) => {
-                        const filled = assignmentBySeat.has(`${table.id}::${seatsPerRow + s + 1}`)
+                        const seatKey = `${table.id}::${seatsPerRow + s + 1}`
+                        const guestId = assignmentBySeat.get(seatKey)
+                        const guestName = guestId ? guestMap.get(guestId)?.name : undefined
+                        const filled = !!guestId
                         return (
-                          <div key={s} className={`w-3 h-3 rounded-full border ${filled ? 'bg-gold-400 border-gold-500' : 'bg-gray-100 border-gray-300'}`} />
+                          <div
+                            key={s}
+                            className={`w-3 h-3 rounded-full border cursor-default ${filled ? 'bg-gold-400 border-gold-500' : 'bg-gray-100 border-gray-300'}`}
+                            title={guestName}
+                            onPointerDown={(e) => e.stopPropagation()}
+                          />
                         )
                       })}
                     </div>
                   </div>
                 )}
 
-                {/* Shape toggle */}
-                <button
+                {/* Shape toggle — hover pill below the table */}
+                <div
+                  className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center bg-white border border-event-border rounded-lg shadow-sm overflow-hidden whitespace-nowrap"
                   onPointerDown={(e) => e.stopPropagation()}
-                  onClick={() => onShapeChange(table.id, isRound ? 'rectangle' : 'round')}
-                  title={isRound ? 'Switch to rectangular' : 'Switch to round'}
-                  className="absolute bottom-1 right-1 text-gray-300 hover:text-gold-500 transition-colors"
                 >
-                  {isRound ? <Square size={10} /> : <Circle size={10} />}
-                </button>
+                  <button
+                    onClick={() => onShapeChange(table.id, 'round')}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-xs transition-colors ${
+                      isRound ? 'bg-gold-500 text-white' : 'text-gray-500 hover:bg-gold-50'
+                    }`}
+                  >
+                    <Circle size={11} /> Round
+                  </button>
+                  <button
+                    onClick={() => onShapeChange(table.id, 'rectangle')}
+                    className={`flex items-center gap-1 px-2.5 py-1 text-xs border-l border-event-border transition-colors ${
+                      !isRound ? 'bg-gold-500 text-white' : 'text-gray-500 hover:bg-gold-50'
+                    }`}
+                  >
+                    <Square size={11} /> Rect
+                  </button>
+                </div>
               </div>
             )
           })}
