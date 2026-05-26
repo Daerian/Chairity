@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, LogOut, Calendar, ChevronRight, Trash2, Users, Copy } from 'lucide-react'
 import type { ChairityEvent } from '@/types'
 import NewEventModal from './NewEventModal'
+import ThemeSelector from '@/components/ThemeSelector'
 
 interface Props {
   user: { id: string; email: string; avatar?: string }
@@ -68,6 +69,7 @@ export default function DashboardView({ user, events: initialEvents, ownedEventI
               <Image src={user.avatar} alt={user.email} width={28} height={28} className="rounded-full" />
             )}
             <span className="text-sm text-event-muted hidden sm:block">{user.email}</span>
+            <ThemeSelector />
             <button
               onClick={handleSignOut}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg hover:border-gray-300 transition-all"

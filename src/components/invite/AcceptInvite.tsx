@@ -26,10 +26,10 @@ export default function AcceptInvite({ token }: Props) {
         return
       }
 
-      setEventName(data[0].event_name)
+      setEventName(data[0].evt_name)
       setStatus('success')
 
-      setTimeout(() => router.push(`/events/${data[0].event_id}`), 1500)
+      setTimeout(() => router.push(`/events/${data[0].evt_id}`), 1500)
     }
 
     accept()

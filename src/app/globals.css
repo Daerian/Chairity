@@ -3,32 +3,200 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   THEME: Gold (default)
+   ============================================================ */
+:root,
+[data-theme="gold"] {
+  --gold-50:  253 250 240;
+  --gold-100: 250 243 216;
+  --gold-200: 245 228 173;
+  --gold-300: 237 206 120;
+  --gold-400: 227 180 69;
+  --gold-500: 212 154 34;
+  --gold-600: 184 125 24;
+  --gold-700: 150 94  22;
+  --gold-800: 122 75  23;
+  --gold-900: 99  62  24;
+
+  --event-bg:      250 247 242;
+  --event-surface: 255 255 255;
+  --event-border:  232 217 184;
+  --event-muted:   140 123 104;
+
+  --shadow-card:       0 2px 12px 0 rgba(180,140,60,0.10);
+  --shadow-card-hover: 0 4px 20px 0 rgba(180,140,60,0.18);
+
+  --body-bg:    250 247 242;
+  --body-color: 45 37 32;
+}
+
+/* ============================================================
+   THEME: Lavender
+   ============================================================ */
+[data-theme="lavender"] {
+  --gold-50:  250 245 255;
+  --gold-100: 243 232 255;
+  --gold-200: 233 213 255;
+  --gold-300: 216 180 254;
+  --gold-400: 192 132 252;
+  --gold-500: 168 85  247;
+  --gold-600: 147 51  234;
+  --gold-700: 126 34  206;
+  --gold-800: 107 33  168;
+  --gold-900: 88  28  135;
+
+  --event-bg:      250 248 255;
+  --event-surface: 255 255 255;
+  --event-border:  233 213 255;
+  --event-muted:   134 104 156;
+
+  --shadow-card:       0 2px 12px 0 rgba(168,85,247,0.10);
+  --shadow-card-hover: 0 4px 20px 0 rgba(168,85,247,0.18);
+
+  --body-bg:    250 248 255;
+  --body-color: 45 30 55;
+}
+
+/* ============================================================
+   THEME: Sky Blue
+   ============================================================ */
+[data-theme="sky"] {
+  --gold-50:  240 249 255;
+  --gold-100: 224 242 254;
+  --gold-200: 186 230 253;
+  --gold-300: 125 211 252;
+  --gold-400: 56  189 248;
+  --gold-500: 14  165 233;
+  --gold-600: 2   132 199;
+  --gold-700: 3   105 161;
+  --gold-800: 7   89  133;
+  --gold-900: 12  74  110;
+
+  --event-bg:      240 249 255;
+  --event-surface: 255 255 255;
+  --event-border:  186 230 253;
+  --event-muted:   71  114 145;
+
+  --shadow-card:       0 2px 12px 0 rgba(14,165,233,0.10);
+  --shadow-card-hover: 0 4px 20px 0 rgba(14,165,233,0.18);
+
+  --body-bg:    240 249 255;
+  --body-color: 15 40 55;
+}
+
+/* ============================================================
+   THEME: Rose
+   ============================================================ */
+[data-theme="rose"] {
+  --gold-50:  255 241 242;
+  --gold-100: 255 228 230;
+  --gold-200: 254 205 211;
+  --gold-300: 253 164 175;
+  --gold-400: 251 113 133;
+  --gold-500: 244 63  94;
+  --gold-600: 225 29  72;
+  --gold-700: 190 18  60;
+  --gold-800: 159 18  57;
+  --gold-900: 136 19  55;
+
+  --event-bg:      255 246 248;
+  --event-surface: 255 255 255;
+  --event-border:  254 205 211;
+  --event-muted:   148 100 115;
+
+  --shadow-card:       0 2px 12px 0 rgba(244,63,94,0.10);
+  --shadow-card-hover: 0 4px 20px 0 rgba(244,63,94,0.18);
+
+  --body-bg:    255 246 248;
+  --body-color: 60 20 30;
+}
+
+/* ============================================================
+   THEME: Dark
+   ============================================================ */
+[data-theme="dark"] {
+  --gold-50:  35  31  24;
+  --gold-100: 46  41  30;
+  --gold-200: 62  54  38;
+  --gold-300: 180 140 60;
+  --gold-400: 200 160 70;
+  --gold-500: 212 154 34;
+  --gold-600: 228 172 52;
+  --gold-700: 242 192 72;
+  --gold-800: 252 212 105;
+  --gold-900: 255 230 145;
+
+  --event-bg:      18  16  12;
+  --event-surface: 28  24  18;
+  --event-border:  55  48  36;
+  --event-muted:   165 152 130;
+
+  --shadow-card:       0 2px 12px 0 rgba(0,0,0,0.4);
+  --shadow-card-hover: 0 4px 20px 0 rgba(0,0,0,0.65);
+
+  --body-bg:    18 16 12;
+  --body-color: 238 232 218;
+}
+
+/* ============================================================
+   Base styles
+   ============================================================ */
 :root {
   --font-inter: 'Inter', system-ui, sans-serif;
   --font-playfair: 'Playfair Display', Georgia, serif;
 }
 
 body {
-  background-color: #faf7f2;
-  color: #2d2520;
+  background-color: rgb(var(--body-bg));
+  color: rgb(var(--body-color));
 }
 
-/* Scrollbar styling */
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #f5ede0; border-radius: 3px; }
-::-webkit-scrollbar-thumb { background: #d4a843; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #b87d18; }
+::-webkit-scrollbar-track { background: rgb(var(--gold-100)); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--gold-500)); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--gold-600)); }
 
-@layer utilities {
-  .drag-handle { cursor: grab; }
-  .drag-handle:active { cursor: grabbing; }
+/* ============================================================
+   Dark theme — override Tailwind's static gray utilities
+   ============================================================ */
+[data-theme="dark"] .bg-white { background-color: rgb(28 24 18); }
+[data-theme="dark"] .bg-gray-50 { background-color: rgb(38 33 26); }
+[data-theme="dark"] .hover\:bg-gray-50:hover { background-color: rgb(38 33 26); }
+[data-theme="dark"] .bg-black\/40 { background-color: rgba(0,0,0,0.72); }
+
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-800 { color: rgb(238 232 218); }
+[data-theme="dark"] .text-gray-700 { color: rgb(218 208 188); }
+[data-theme="dark"] .text-gray-600 { color: rgb(188 175 155); }
+[data-theme="dark"] .text-gray-400 { color: rgb(145 132 112); }
+[data-theme="dark"] .text-gray-300 { color: rgb(115 105 88); }
+
+[data-theme="dark"] .border-gray-200 { border-color: rgb(55 48 36); }
+[data-theme="dark"] .border-gray-300 { border-color: rgb(70 60 46); }
+[data-theme="dark"] .border-gray-100 { border-color: rgb(44 38 28); }
+
+[data-theme="dark"] .shadow-sm { box-shadow: 0 1px 4px 0 rgba(0,0,0,0.45); }
+[data-theme="dark"] .shadow-lg { box-shadow: 0 8px 28px 0 rgba(0,0,0,0.65); }
+[data-theme="dark"] .shadow-xl { box-shadow: 0 12px 40px 0 rgba(0,0,0,0.75); }
+[data-theme="dark"] .shadow-2xl { box-shadow: 0 20px 60px 0 rgba(0,0,0,0.85); }
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background-color: rgb(35 30 22);
+  color: rgb(218 208 188);
+  border-color: rgb(65 56 42);
 }
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder { color: rgb(115 105 88); }
 
-/* Print: show only the floor plan canvas */
+/* ============================================================
+   Print: show only the floor plan canvas
+   ============================================================ */
 @media print {
   body { background: white; }
-  header,
-  aside,
   [data-print-hide] { display: none !important; }
   [data-print-show] { display: block !important; }
   .floor-plan-canvas {
@@ -39,4 +207,9 @@ body {
     overflow: visible !important;
     page-break-inside: avoid;
   }
+}
+
+@layer utilities {
+  .drag-handle { cursor: grab; }
+  .drag-handle:active { cursor: grabbing; }
 }
