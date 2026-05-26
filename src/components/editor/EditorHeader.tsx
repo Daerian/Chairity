@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Settings2, Upload, ChevronLeft, Check, Loader2, Share2, LayoutGrid, Map } from 'lucide-react'
 import type { Guest, SeatingTable, SeatAssignment } from '@/types'
 import ExportButtons from './ExportButtons'
+import ThemeSelector from '@/components/ThemeSelector'
 
 interface Props {
   eventName: string
@@ -105,6 +106,7 @@ export default function EditorHeader({
           </button>
         )}
         <ExportButtons eventName={eventName} tables={tables} guests={guests} assignments={assignments} />
+        <ThemeSelector />
       </div>
     </header>
   )

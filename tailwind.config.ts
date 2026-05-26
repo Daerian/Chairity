@@ -9,23 +9,24 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // All gold-* shades are CSS variables — swapping the variables changes the whole theme
         gold: {
-          50:  '#fdfaf0',
-          100: '#faf3d8',
-          200: '#f5e4ad',
-          300: '#edce78',
-          400: '#e3b445',
-          500: '#d49a22',
-          600: '#b87d18',
-          700: '#965e16',
-          800: '#7a4b17',
-          900: '#633e18',
+          50:  'rgb(var(--gold-50)  / <alpha-value>)',
+          100: 'rgb(var(--gold-100) / <alpha-value>)',
+          200: 'rgb(var(--gold-200) / <alpha-value>)',
+          300: 'rgb(var(--gold-300) / <alpha-value>)',
+          400: 'rgb(var(--gold-400) / <alpha-value>)',
+          500: 'rgb(var(--gold-500) / <alpha-value>)',
+          600: 'rgb(var(--gold-600) / <alpha-value>)',
+          700: 'rgb(var(--gold-700) / <alpha-value>)',
+          800: 'rgb(var(--gold-800) / <alpha-value>)',
+          900: 'rgb(var(--gold-900) / <alpha-value>)',
         },
         event: {
-          bg:      '#faf7f2',
-          surface: '#ffffff',
-          border:  '#e8d9b8',
-          muted:   '#8c7b68',
+          bg:      'rgb(var(--event-bg)      / <alpha-value>)',
+          surface: 'rgb(var(--event-surface) / <alpha-value>)',
+          border:  'rgb(var(--event-border)  / <alpha-value>)',
+          muted:   'rgb(var(--event-muted)   / <alpha-value>)',
         },
       },
       fontFamily: {
@@ -33,8 +34,8 @@ const config: Config = {
         display: ['var(--font-playfair)', 'Georgia', 'serif'],
       },
       boxShadow: {
-        card:       '0 2px 12px 0 rgba(180,140,60,0.10)',
-        'card-hover': '0 4px 20px 0 rgba(180,140,60,0.18)',
+        card:         'var(--shadow-card)',
+        'card-hover': 'var(--shadow-card-hover)',
       },
     },
   },
