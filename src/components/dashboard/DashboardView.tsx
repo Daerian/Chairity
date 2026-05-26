@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { Plus, LogOut, Calendar, ChevronRight, Trash2, Users } from 'lucide-react'
+import { Plus, LogOut, Calendar, ChevronRight, Trash2, Users, Copy } from 'lucide-react'
 import type { ChairityEvent } from '@/types'
 import NewEventModal from './NewEventModal'
 
@@ -33,6 +33,13 @@ export default function DashboardView({ user, events: initialEvents, ownedEventI
     await supabase.from('events').delete().eq('id', id)
     setEvents((prev) => prev.filter((e) => e.id !== id))
     setDeletingId(null)
+  }
+
+  async function handleDuplicate(id: string) {
+    const { data, error } = await supabase.rpc('duplicate_event', { p_event_id: id })
+    if (error || !data) return
+    const { data: newEvent } = await supabase.from('events').select('*').eq('id', data).single()
+    if (newEvent) setEvents((prev) => [...prev, newEvent as ChairityEvent])
   }
 
   async function handleLeave(id: string) {
@@ -130,14 +137,23 @@ export default function DashboardView({ user, events: initialEvents, ownedEventI
                         Open Editor <ChevronRight size={14} />
                       </Link>
                       {isOwner ? (
-                        <button
-                          onClick={() => handleDelete(event.id)}
-                          disabled={deletingId === event.id}
-                          className="text-gray-300 hover:text-red-400 transition-colors"
-                          title="Delete event"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleDuplicate(event.id)}
+                            className="text-gray-300 hover:text-gold-500 transition-colors"
+                            title="Duplicate event"
+                          >
+                            <Copy size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(event.id)}
+                            disabled={deletingId === event.id}
+                            className="text-gray-300 hover:text-red-400 transition-colors"
+                            title="Delete event"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       ) : (
                         <button
                           onClick={() => handleLeave(event.id)}

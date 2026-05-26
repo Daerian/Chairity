@@ -1,6 +1,7 @@
 'use client'
 
 import { LayoutGrid } from 'lucide-react'
+import { SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import type { Guest, SeatingTable } from '@/types'
 import TableCard from './TableCard'
 
@@ -30,11 +31,19 @@ export default function TableCanvas({ tables, guestMap, assignmentBySeat, onUnas
 
   return (
     <main className="flex-1 overflow-auto p-6">
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
-        {tables.map((table) => (
-          <TableCard key={table.id} table={table} guestMap={guestMap} assignmentBySeat={assignmentBySeat} onUnassign={onUnassign} />
-        ))}
-      </div>
+      <SortableContext items={tables.map((t) => t.id)} strategy={rectSortingStrategy}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
+          {tables.map((table) => (
+            <TableCard
+              key={table.id}
+              table={table}
+              guestMap={guestMap}
+              assignmentBySeat={assignmentBySeat}
+              onUnassign={onUnassign}
+            />
+          ))}
+        </div>
+      </SortableContext>
     </main>
   )
 }

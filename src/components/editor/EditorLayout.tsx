@@ -5,10 +5,12 @@ import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
+import { arrayMove } from '@dnd-kit/sortable'
 import { createClient } from '@/lib/supabase/client'
-import type { ChairityEvent, Guest, SeatingTable, SeatAssignment, DragData } from '@/types'
+import type { ChairityEvent, Guest, SeatingTable, SeatAssignment, DragData, FloorLayout } from '@/types'
 import GuestSidebar from './GuestSidebar'
 import TableCanvas from './TableCanvas'
+import FloorPlanCanvas from './FloorPlanCanvas'
 import EditorHeader from './EditorHeader'
 import TableConfigModal from './TableConfigModal'
 import CSVImport from './CSVImport'
@@ -35,6 +37,10 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
   const [showCSVImport, setShowCSVImport] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [view, setView] = useState<'grid' | 'floor'>('grid')
+  const [floorLayout, setFloorLayout] = useState<FloorLayout>(
+    event.floor_layout ?? { room_width: 1200, room_height: 800, snap_grid: 40 }
+  )
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -49,7 +55,6 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
     [guests, assignmentByGuest]
   )
 
-  // Refs so real-time callbacks always read current state
   const tablesRef = useRef(tables)
   useEffect(() => { tablesRef.current = tables }, [tables])
 
@@ -70,7 +75,6 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
     if (data) setTables(data as SeatingTable[])
   }
 
-  // Real-time subscriptions for live collaboration
   useEffect(() => {
     const channel = supabase
       .channel(`event:${event.id}`)
@@ -85,7 +89,6 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
     return () => { supabase.removeChannel(channel) }
   }, [event.id])
 
-  // Listen for dropdown-based assignments dispatched by SeatSlot
   useEffect(() => {
     async function onAssign(e: Event) {
       const { guestId, tableId, seatNumber } = (e as CustomEvent).detail as {
@@ -114,13 +117,31 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
   async function handleDragEnd(e: DragEndEvent) {
     setActiveDrag(null)
     const { active, over } = e
-    if (!over) return
 
     const drag = active.data.current as DragData
-    const drop = over.data.current as { type: string; tableId?: string; seatNumber?: number }
-    if (!drag || !drop) return
+    if (!drag) return
 
+    // Table reorder via drag handle
+    if (drag.type === 'table') {
+      if (!over || active.id === over.id) return
+      const oldIdx = tables.findIndex((t) => t.id === active.id)
+      const newIdx = tables.findIndex((t) => t.id === over.id)
+      if (oldIdx === -1 || newIdx === -1) return
+      const reordered = arrayMove(tables, oldIdx, newIdx).map((t, i) => ({ ...t, sort_order: i }))
+      setTables(reordered)
+      for (const t of reordered) {
+        await supabase.from('seating_tables').update({ sort_order: t.sort_order }).eq('id', t.id)
+      }
+      return
+    }
+
+    // Guest assignment
+    if (!over) return
     const guestId = drag.guestId
+    if (!guestId) return
+
+    const drop = over.data.current as { type: string; tableId?: string; seatNumber?: number }
+    if (!drop) return
 
     if (drop.type === 'sidebar') {
       const existing = assignmentByGuest.get(guestId)
@@ -196,7 +217,23 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
     refetchAssignments()
   }
 
-  const activeDragGuest = activeDrag ? guestMap.get(activeDrag.guestId) : null
+  async function handleFloorPositionChange(tableId: string, x: number, y: number) {
+    setTables((prev) => prev.map((t) => t.id === tableId ? { ...t, pos_x: x, pos_y: y } : t))
+    await supabase.from('seating_tables').update({ pos_x: x, pos_y: y }).eq('id', tableId)
+  }
+
+  async function handleShapeChange(tableId: string, shape: 'rectangle' | 'round') {
+    setTables((prev) => prev.map((t) => t.id === tableId ? { ...t, shape } : t))
+    await supabase.from('seating_tables').update({ shape }).eq('id', tableId)
+  }
+
+  async function handleFloorLayoutChange(layout: FloorLayout) {
+    setFloorLayout(layout)
+    await supabase.from('events').update({ floor_layout: layout }).eq('id', event.id)
+  }
+
+  const activeDragGuest = activeDrag?.guestId ? guestMap.get(activeDrag.guestId) : null
+  const activeDragTable = activeDrag?.type === 'table' ? tables.find((t) => t.id === activeDrag.tableId) : null
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-event-bg">
@@ -207,6 +244,8 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
         guests={guests}
         assignments={assignments}
         isOwner={isOwner}
+        view={view}
+        onViewChange={setView}
         onRename={handleRenameEvent}
         onOpenTableConfig={() => setShowTableConfig(true)}
         onOpenCSVImport={() => setShowCSVImport(true)}
@@ -214,26 +253,42 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
       />
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex flex-1 overflow-hidden">
-          <GuestSidebar
-            guests={unassignedGuests}
-            totalGuests={guests.length}
-            assignedCount={assignments.length}
-            onOpenCSVImport={() => setShowCSVImport(true)}
-          />
-          <TableCanvas
+        {view === 'grid' ? (
+          <div className="flex flex-1 overflow-hidden">
+            <GuestSidebar
+              guests={unassignedGuests}
+              totalGuests={guests.length}
+              assignedCount={assignments.length}
+              onOpenCSVImport={() => setShowCSVImport(true)}
+            />
+            <TableCanvas
+              tables={tables}
+              guestMap={guestMap}
+              assignmentBySeat={assignmentBySeat}
+              onUnassign={handleUnassign}
+              onOpenTableConfig={() => setShowTableConfig(true)}
+            />
+          </div>
+        ) : (
+          <FloorPlanCanvas
             tables={tables}
-            guestMap={guestMap}
+            floorLayout={floorLayout}
             assignmentBySeat={assignmentBySeat}
-            onUnassign={handleUnassign}
+            onPositionChange={handleFloorPositionChange}
+            onShapeChange={handleShapeChange}
+            onFloorLayoutChange={handleFloorLayoutChange}
             onOpenTableConfig={() => setShowTableConfig(true)}
           />
-        </div>
+        )}
 
         <DragOverlay dropAnimation={null}>
           {activeDragGuest ? (
             <div className="px-3 py-2 bg-white rounded-lg border-2 border-gold-400 shadow-card text-sm font-medium text-gray-800 pointer-events-none select-none">
               {activeDragGuest.name}
+            </div>
+          ) : activeDragTable ? (
+            <div className="bg-white rounded-xl border-2 border-gold-400 shadow-card px-4 py-3 pointer-events-none select-none">
+              <span className="font-semibold text-sm text-gray-800">{activeDragTable.name}</span>
             </div>
           ) : null}
         </DragOverlay>

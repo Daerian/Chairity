@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
-import { Settings2, Upload, ChevronLeft, Check, Loader2, Share2 } from 'lucide-react'
+import { Settings2, Upload, ChevronLeft, Check, Loader2, Share2, LayoutGrid, Map } from 'lucide-react'
 import type { Guest, SeatingTable, SeatAssignment } from '@/types'
 import ExportButtons from './ExportButtons'
 
@@ -13,6 +13,8 @@ interface Props {
   guests: Guest[]
   assignments: SeatAssignment[]
   isOwner: boolean
+  view: 'grid' | 'floor'
+  onViewChange: (view: 'grid' | 'floor') => void
   onRename: (name: string) => void
   onOpenTableConfig: () => void
   onOpenCSVImport: () => void
@@ -20,7 +22,7 @@ interface Props {
 }
 
 export default function EditorHeader({
-  eventName, saving, tables, guests, assignments, isOwner,
+  eventName, saving, tables, guests, assignments, isOwner, view, onViewChange,
   onRename, onOpenTableConfig, onOpenCSVImport, onOpenShare,
 }: Props) {
   const [editing, setEditing] = useState(false)
@@ -38,7 +40,7 @@ export default function EditorHeader({
   }
 
   return (
-    <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-event-border shadow-sm z-10 shrink-0">
+    <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-event-border shadow-sm z-10 shrink-0" data-print-hide>
       <Link href="/dashboard" className="text-event-muted hover:text-gold-600 transition-colors">
         <ChevronLeft size={20} />
       </Link>
@@ -66,6 +68,28 @@ export default function EditorHeader({
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+        {/* View toggle */}
+        <div className="flex items-center border border-event-border rounded-lg overflow-hidden">
+          <button
+            onClick={() => onViewChange('grid')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors ${
+              view === 'grid' ? 'bg-gold-500 text-white' : 'hover:bg-gold-50 text-gray-600'
+            }`}
+          >
+            <LayoutGrid size={13} />
+            Grid
+          </button>
+          <button
+            onClick={() => onViewChange('floor')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm transition-colors border-l border-event-border ${
+              view === 'floor' ? 'bg-gold-500 text-white' : 'hover:bg-gold-50 text-gray-600'
+            }`}
+          >
+            <Map size={13} />
+            Floor Plan
+          </button>
+        </div>
+
         <button onClick={onOpenCSVImport} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-event-border hover:border-gold-400 hover:bg-gold-50 transition-all">
           <Upload size={14} />
           Import CSV
