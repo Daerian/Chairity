@@ -1,3 +1,9 @@
+export interface FloorLayout {
+  room_width: number
+  room_height: number
+  snap_grid: number
+}
+
 export interface ChairityEvent {
   id: string
   user_id: string
@@ -5,6 +11,7 @@ export interface ChairityEvent {
   description: string | null
   event_date: string | null
   invite_token: string
+  floor_layout: FloorLayout | null
   created_at: string
   updated_at: string
 }
@@ -14,6 +21,7 @@ export interface Guest {
   event_id: string
   name: string
   notes: string | null
+  group_name: string | null
   created_at: string
 }
 
@@ -23,6 +31,9 @@ export interface SeatingTable {
   name: string
   capacity: number
   sort_order: number
+  pos_x: number | null
+  pos_y: number | null
+  shape: 'rectangle' | 'round'
   created_at: string
 }
 
@@ -50,8 +61,8 @@ export interface Collaborator {
 }
 
 export interface DragData {
-  type: 'guest' | 'seated'
-  guestId: string
+  type: 'guest' | 'seated' | 'table'
+  guestId?: string
   tableId?: string
   seatNumber?: number
 }

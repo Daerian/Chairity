@@ -28,25 +28,20 @@ export default function LoginPage({ redirectTo }: Props) {
         <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-gold-200 opacity-30 blur-3xl" />
       </div>
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-gold-400 to-gold-600 shadow-lg mb-4">
             <span className="text-white text-2xl font-display font-bold">C</span>
           </div>
-          <h1 className="font-display text-4xl font-bold text-gray-800">Chairity</h1>
-          <p className="mt-2 text-event-muted">Beautiful seating arrangements, effortlessly.</p>
+          <h1 className="font-display text-4xl font-bold text-gray-800">Daerian&apos;s Chairity</h1>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-card border border-event-border p-8 space-y-6">
+        <div className="bg-white rounded-2xl shadow-card border border-event-border p-8 space-y-4">
           {redirectTo && (
             <p className="text-sm text-center text-gold-700 bg-gold-50 rounded-lg px-3 py-2">
               Sign in to accept your event invite.
             </p>
           )}
-          <div className="text-center">
-            <h2 className="font-display text-xl font-semibold text-gray-800">Welcome</h2>
-            <p className="mt-1 text-sm text-event-muted">Sign in to manage your events and seating plans.</p>
-          </div>
           <button
             onClick={signInWithGoogle}
             disabled={loading}
@@ -64,20 +59,6 @@ export default function LoginPage({ redirectTo }: Props) {
             )}
             Continue with Google
           </button>
-        </div>
-
-        <div className="mt-8 grid grid-cols-3 gap-4 text-center">
-          {[
-            { icon: '📋', label: 'Import CSV', desc: 'Bulk add guests instantly' },
-            { icon: '✋', label: 'Drag & Drop', desc: 'Intuitive seat assignment' },
-            { icon: '📤', label: 'Export', desc: 'PDF or Excel output' },
-          ].map((f) => (
-            <div key={f.label} className="bg-white rounded-xl p-3 border border-event-border shadow-sm">
-              <div className="text-xl mb-1">{f.icon}</div>
-              <div className="text-xs font-semibold text-gray-700">{f.label}</div>
-              <div className="text-xs text-event-muted mt-0.5">{f.desc}</div>
-            </div>
-          ))}
         </div>
       </div>
     </div>

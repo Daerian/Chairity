@@ -3,7 +3,12 @@
     "allow": [
       "Bash(npm run *)",
       "Bash(git add *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(Get-ChildItem -Path \"e:\\\\src\\\\Chairity\\\\src\" -Recurse -Force)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Format-Table -HideTableHeaders)",
+      "Bash(npm install *)"
     ]
   }
 }
