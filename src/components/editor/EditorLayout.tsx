@@ -229,7 +229,8 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
 
   async function handleFloorLayoutChange(layout: FloorLayout) {
     setFloorLayout(layout)
-    await supabase.from('events').update({ floor_layout: layout }).eq('id', event.id)
+    const { error } = await supabase.from('events').update({ floor_layout: layout }).eq('id', event.id)
+    if (error) console.error('floor layout save failed:', error.message)
   }
 
   const activeDragGuest = activeDrag?.guestId ? guestMap.get(activeDrag.guestId) : null
