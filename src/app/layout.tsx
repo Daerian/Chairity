@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Inter, Playfair_Display } from 'next/font/google'
-import Script from 'next/script'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
@@ -14,13 +13,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: import('react').ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
-      <Script
-        id="theme-init"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `try{document.documentElement.dataset.theme=localStorage.getItem('chairity-theme')||'gold'}catch(e){}`,
-        }}
-      />
+      {/* Runs once from server-rendered HTML before first paint — React intentionally won't re-run it, which is correct */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `try{document.documentElement.dataset.theme=localStorage.getItem('chairity-theme')||'gold'}catch(e){}` }} />
+      </head>
       <body className="font-sans antialiased">{children}</body>
     </html>
   )
