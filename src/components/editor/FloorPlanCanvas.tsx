@@ -4,8 +4,6 @@ import { useState, useRef, useEffect } from 'react'
 import { Settings, Circle, Square, Printer } from 'lucide-react'
 import type { Guest, SeatingTable, FloorLayout } from '@/types'
 
-const CANVAS_W = 1200
-const CANVAS_H = 800
 const RECT_W = 160
 const RECT_H = 110
 const ROUND_SIZE = 130
@@ -91,8 +89,8 @@ export default function FloorPlanCanvas({
     const rawX = e.clientX - rect.left - dragOffset.x
     const rawY = e.clientY - rect.top - dragOffset.y
     setTempPos({
-      x: Math.max(0, Math.min(CANVAS_W - w, snap(rawX))),
-      y: Math.max(0, Math.min(CANVAS_H - h, snap(rawY))),
+      x: Math.max(0, Math.min(roomW - w, snap(rawX))),
+      y: Math.max(0, Math.min(roomH - h, snap(rawY))),
     })
   }
 
@@ -133,10 +131,10 @@ export default function FloorPlanCanvas({
       {/* Toolbar */}
       <div className="flex items-center gap-3 px-4 py-2 bg-white border-b border-event-border shrink-0" data-print-hide>
         <span className="text-xs text-event-muted">
-          Room: <strong className="text-gray-700">{floorLayout.room_width} m × {floorLayout.room_height} m</strong>
+          Canvas: <strong className="text-gray-700">{roomW} × {roomH} px</strong>
         </span>
         <span className="text-xs text-event-muted">
-          Snap: <strong className="text-gray-700">{floorLayout.snap_grid > 0 ? `${floorLayout.snap_grid}px` : 'off'}</strong>
+          Snap: <strong className="text-gray-700">{snapGrid > 0 ? `${snapGrid}px` : 'off'}</strong>
         </span>
         <div className="ml-auto flex items-center gap-2 relative">
           <button
@@ -156,13 +154,13 @@ export default function FloorPlanCanvas({
               <h4 className="text-sm font-semibold text-gray-700">Room settings</h4>
               <div className="flex gap-2">
                 <label className="flex-1 space-y-1">
-                  <span className="text-xs text-event-muted">Width (m)</span>
-                  <input type="number" min={1} value={roomW} onChange={(e) => setRoomW(Number(e.target.value))}
+                  <span className="text-xs text-event-muted">Width (px)</span>
+                  <input type="number" min={400} step={100} value={roomW} onChange={(e) => setRoomW(Number(e.target.value))}
                     className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-gold-400" />
                 </label>
                 <label className="flex-1 space-y-1">
-                  <span className="text-xs text-event-muted">Height (m)</span>
-                  <input type="number" min={1} value={roomH} onChange={(e) => setRoomH(Number(e.target.value))}
+                  <span className="text-xs text-event-muted">Height (px)</span>
+                  <input type="number" min={300} step={100} value={roomH} onChange={(e) => setRoomH(Number(e.target.value))}
                     className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-gold-400" />
                 </label>
               </div>
@@ -189,7 +187,7 @@ export default function FloorPlanCanvas({
         <div
           ref={canvasRef}
           className="relative rounded-xl border-2 border-gold-100 shadow-inner floor-plan-canvas"
-          style={{ width: CANVAS_W, height: CANVAS_H, background: '#faf7f2', minWidth: CANVAS_W, minHeight: CANVAS_H, ...gridBg }}
+          style={{ width: roomW, height: roomH, background: '#faf7f2', minWidth: roomW, minHeight: roomH, ...gridBg }}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
