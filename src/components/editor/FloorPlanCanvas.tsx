@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Settings, Circle, Square, Printer } from 'lucide-react'
+import { Settings, Circle, Square, Printer, Save, RotateCcw } from 'lucide-react'
 import type { Guest, SeatingTable, FloorLayout } from '@/types'
 
 const RECT_W = 160
@@ -23,7 +23,7 @@ interface Props {
   floorLayout: FloorLayout
   guestMap: Map<string, Guest>
   assignmentBySeat: Map<string, string>
-  onPositionChange: (tableId: string, x: number, y: number) => void
+  onSavePositions: (positions: { tableId: string; x: number; y: number }[]) => Promise<void>
   onShapeChange: (tableId: string, shape: 'rectangle' | 'round') => void
   onFloorLayoutChange: (layout: FloorLayout) => void
   onOpenTableConfig: () => void
@@ -31,25 +31,27 @@ interface Props {
 
 export default function FloorPlanCanvas({
   tables, floorLayout, guestMap, assignmentBySeat,
-  onPositionChange, onShapeChange, onFloorLayoutChange, onOpenTableConfig,
+  onSavePositions, onShapeChange, onFloorLayoutChange, onOpenTableConfig,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [tempPos, setTempPos] = useState<FloorPos | null>(null)
+  const [pendingPositions, setPendingPositions] = useState<Map<string, FloorPos>>(new Map())
+  const [isSaving, setIsSaving] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [roomW, setRoomW] = useState(floorLayout.room_width)
   const [roomH, setRoomH] = useState(floorLayout.room_height)
   const [snapGrid, setSnapGrid] = useState(floorLayout.snap_grid)
 
-  // Keep local form state in sync with committed prop
+  const isDirty = pendingPositions.size > 0
+
   useEffect(() => {
     setRoomW(floorLayout.room_width)
     setRoomH(floorLayout.room_height)
     setSnapGrid(floorLayout.snap_grid)
   }, [floorLayout])
 
-  // Use local snapGrid so the grid previews immediately as the select changes
   const gridBg = snapGrid > 0 ? {
     backgroundImage: `linear-gradient(rgba(180,150,100,0.1) 1px,transparent 1px),linear-gradient(90deg,rgba(180,150,100,0.1) 1px,transparent 1px)`,
     backgroundSize: `${snapGrid}px ${snapGrid}px`,
@@ -61,6 +63,8 @@ export default function FloorPlanCanvas({
 
   function getPos(table: SeatingTable, index: number): FloorPos {
     if (draggingId === table.id && tempPos) return tempPos
+    const pending = pendingPositions.get(table.id)
+    if (pending) return pending
     if (table.pos_x != null && table.pos_y != null) return { x: table.pos_x, y: table.pos_y }
     return defaultPos(index)
   }
@@ -95,9 +99,29 @@ export default function FloorPlanCanvas({
   }
 
   function handlePointerUp() {
-    if (draggingId && tempPos) onPositionChange(draggingId, tempPos.x, tempPos.y)
+    if (draggingId && tempPos) {
+      const id = draggingId
+      const pos = tempPos
+      setPendingPositions((prev: Map<string, FloorPos>) => new Map(prev).set(id, pos))
+    }
     setDraggingId(null)
     setTempPos(null)
+  }
+
+  async function handleSave() {
+    setIsSaving(true)
+    const positions = tables.map((t, i) => {
+      const pending = pendingPositions.get(t.id)
+      const pos = pending ?? (t.pos_x != null && t.pos_y != null ? { x: t.pos_x, y: t.pos_y } : defaultPos(i))
+      return { tableId: t.id, x: pos.x, y: pos.y }
+    })
+    await onSavePositions(positions)
+    setPendingPositions(new Map())
+    setIsSaving(false)
+  }
+
+  function handleReset() {
+    setPendingPositions(new Map())
   }
 
   function saveSettings() {
@@ -136,7 +160,30 @@ export default function FloorPlanCanvas({
         <span className="text-xs text-event-muted">
           Snap: <strong className="text-gray-700">{snapGrid > 0 ? `${snapGrid}px` : 'off'}</strong>
         </span>
+        {isDirty && (
+          <span className="text-xs text-amber-600 font-medium">Unsaved changes</span>
+        )}
         <div className="ml-auto flex items-center gap-2 relative">
+          {isDirty && (
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-event-border rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-600"
+              title="Discard unsaved changes"
+            >
+              <RotateCcw size={14} /> Reset
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${
+              isDirty
+                ? 'bg-gold-500 text-white hover:bg-gold-600 border border-gold-500'
+                : 'border border-event-border text-gray-500 hover:border-gold-400 hover:bg-gold-50'
+            }`}
+          >
+            <Save size={14} /> {isSaving ? 'Saving…' : 'Save layout'}
+          </button>
           <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-event-border rounded-lg hover:border-gold-400 hover:bg-gold-50 transition-all"
@@ -198,6 +245,7 @@ export default function FloorPlanCanvas({
             const pos = getPos(table, i)
             const occ = getOccupancy(table)
             const seatsPerRow = Math.ceil(table.capacity / 2)
+            const hasPending = pendingPositions.has(table.id)
 
             return (
               <div
@@ -208,18 +256,17 @@ export default function FloorPlanCanvas({
                     ? 'shadow-xl z-10 cursor-grabbing'
                     : 'shadow-card hover:shadow-card-hover cursor-grab z-0 hover:z-20'}
                   ${occ > 0 ? 'border-gold-300 bg-white' : 'border-gray-200 bg-white'}
+                  ${hasPending ? 'ring-2 ring-amber-400 ring-offset-1' : ''}
                 `}
                 style={{ left: pos.x, top: pos.y, width: w, height: h }}
                 onPointerDown={(e) => startDrag(e, table, i)}
               >
                 {isRound ? (
                   <div className="absolute inset-0">
-                    {/* Center label — no pointer events so drag still works from center */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 pointer-events-none">
                       <span className="font-semibold text-xs text-gray-800 text-center px-3 truncate max-w-full">{table.name}</span>
                       <span className="text-[10px] text-event-muted">{occ}/{table.capacity}</span>
                     </div>
-                    {/* Seat dots — pointer-events enabled so title tooltip works */}
                     {Array.from({ length: table.capacity }, (_, s) => {
                       const angle = (s / table.capacity) * 2 * Math.PI - Math.PI / 2
                       const r = ROUND_SIZE / 2 - 10
@@ -241,9 +288,7 @@ export default function FloorPlanCanvas({
                     })}
                   </div>
                 ) : (
-                  // Rectangular table: seats top + bottom rows
                   <div className="absolute inset-0 flex flex-col justify-between py-1 px-2">
-                    {/* Top seats */}
                     <div className="flex justify-around">
                       {Array.from({ length: seatsPerRow }, (_, s) => {
                         const seatKey = `${table.id}::${s + 1}`
@@ -260,12 +305,10 @@ export default function FloorPlanCanvas({
                         )
                       })}
                     </div>
-                    {/* Center label */}
                     <div className="flex flex-col items-center gap-0.5 pointer-events-none">
                       <span className="font-semibold text-xs text-gray-800 truncate max-w-[90%]">{table.name}</span>
                       <span className="text-[10px] text-event-muted">{occ}/{table.capacity}</span>
                     </div>
-                    {/* Bottom seats */}
                     <div className="flex justify-around">
                       {Array.from({ length: table.capacity - seatsPerRow }, (_, s) => {
                         const seatKey = `${table.id}::${seatsPerRow + s + 1}`

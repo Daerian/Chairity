@@ -139,7 +139,7 @@ export default function TableCard({ table, guestMap, assignmentBySeat, onUnassig
         )}
       </div>
 
-      <div className="p-3 grid gap-1.5 overflow-hidden" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+      <div className="p-3 grid gap-1.5" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
         {Array.from({ length: displayCapacity }, (_, i) => i + 1).map((seatNum) => {
           const guestId = assignmentBySeat.get(`${table.id}::${seatNum}`)
           const guest = guestId ? guestMap.get(guestId) ?? null : null

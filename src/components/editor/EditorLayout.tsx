@@ -206,6 +206,11 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
     setSaving(false)
   }
 
+  async function handleAddGuest(name: string) {
+    const { data } = await supabase.from('guests').insert({ event_id: event.id, name }).select().single()
+    if (data) setGuests((prev) => [...prev, data as Guest])
+  }
+
   function handleGuestsImported(newGuests: Guest[]) {
     setGuests((prev) => [...prev, ...newGuests])
     setShowCSVImport(false)
@@ -217,9 +222,16 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
     refetchAssignments()
   }
 
-  async function handleFloorPositionChange(tableId: string, x: number, y: number) {
-    setTables((prev) => prev.map((t) => t.id === tableId ? { ...t, pos_x: x, pos_y: y } : t))
-    await supabase.from('seating_tables').update({ pos_x: x, pos_y: y }).eq('id', tableId)
+  async function handleSaveFloorPositions(positions: { tableId: string; x: number; y: number }[]) {
+    setTables((prev) => prev.map((t) => {
+      const upd = positions.find((p) => p.tableId === t.id)
+      return upd ? { ...t, pos_x: upd.x, pos_y: upd.y } : t
+    }))
+    await Promise.all(
+      positions.map(({ tableId, x, y }) =>
+        supabase.from('seating_tables').update({ pos_x: x, pos_y: y }).eq('id', tableId)
+      )
+    )
   }
 
   async function handleShapeChange(tableId: string, shape: 'rectangle' | 'round') {
@@ -260,6 +272,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
               guests={unassignedGuests}
               totalGuests={guests.length}
               assignedCount={assignments.length}
+              onAddGuest={handleAddGuest}
               onOpenCSVImport={() => setShowCSVImport(true)}
             />
             <TableCanvas
@@ -276,7 +289,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
             floorLayout={floorLayout}
             guestMap={guestMap}
             assignmentBySeat={assignmentBySeat}
-            onPositionChange={handleFloorPositionChange}
+            onSavePositions={handleSaveFloorPositions}
             onShapeChange={handleShapeChange}
             onFloorLayoutChange={handleFloorLayoutChange}
             onOpenTableConfig={() => setShowTableConfig(true)}

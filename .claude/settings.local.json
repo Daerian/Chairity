@@ -9,7 +9,15 @@
       "Bash(Sort-Object FullName)",
       "Bash(Format-Table -HideTableHeaders)",
       "Bash(npm install *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(lsof -ti:3000)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(cat /tmp/chairity-dev.log)",
+      "Read(//private/tmp/**)",
+      "Bash(find /Users/daerian -name \"node\" -type f 2>/dev/null | head -5 *)",
+      "Read(//Users/daerian/**)",
+      "Read(//opt/homebrew/Cellar/node/26.0.0/bin/**)"
     ]
   }
 }
