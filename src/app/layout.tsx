@@ -13,13 +13,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: import('react').ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
-      {/* Set theme before first paint to avoid flash */}
+      {/* Runs once from server-rendered HTML before first paint — React intentionally won't re-run it, which is correct */}
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{document.documentElement.dataset.theme=localStorage.getItem('chairity-theme')||'gold'}catch(e){}`,
-          }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: `try{document.documentElement.dataset.theme=localStorage.getItem('chairity-theme')||'gold'}catch(e){}` }} />
       </head>
       <body className="font-sans antialiased">{children}</body>
     </html>

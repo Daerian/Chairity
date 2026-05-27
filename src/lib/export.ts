@@ -8,11 +8,20 @@ interface ExportData {
 }
 
 export function exportToExcel({ eventName, tables, guests, assignments }: ExportData) {
-  import('xlsx').then((XLSX) => {
+  import('exceljs').then(async ({ default: ExcelJS }) => {
     const guestMap = new Map(guests.map((g) => [g.id, g.name]))
     const tableMap = new Map(tables.map((t) => [t.id, t.name]))
 
-    const rows: (string | number)[][] = [['Guest Name', 'Table', 'Seat #']]
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Seating')
+
+    ws.columns = [
+      { header: 'Guest Name', key: 'guest', width: 30 },
+      { header: 'Table',      key: 'table', width: 20 },
+      { header: 'Seat #',     key: 'seat',  width: 10 },
+    ]
+
+    ws.getRow(1).font = { bold: true }
 
     const sorted = [...assignments].sort((a, b) => {
       const ta = tableMap.get(a.table_id) ?? ''
@@ -21,19 +30,22 @@ export function exportToExcel({ eventName, tables, guests, assignments }: Export
     })
 
     for (const a of sorted) {
-      rows.push([guestMap.get(a.guest_id) ?? '', tableMap.get(a.table_id) ?? '', a.seat_number])
+      ws.addRow({ guest: guestMap.get(a.guest_id) ?? '', table: tableMap.get(a.table_id) ?? '', seat: a.seat_number })
     }
 
     const assignedIds = new Set(assignments.map((a) => a.guest_id))
     for (const g of guests) {
-      if (!assignedIds.has(g.id)) rows.push([g.name, 'Unassigned', ''])
+      if (!assignedIds.has(g.id)) ws.addRow({ guest: g.name, table: 'Unassigned', seat: '' })
     }
 
-    const ws = XLSX.utils.aoa_to_sheet(rows)
-    ws['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 10 }]
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Seating')
-    XLSX.writeFile(wb, `${eventName} - Seating.xlsx`)
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${eventName} - Seating.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
   })
 }
 
