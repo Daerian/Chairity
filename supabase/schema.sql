@@ -359,3 +359,23 @@ SELECT
   raw_user_meta_data->>'avatar_url'
 FROM auth.users
 ON CONFLICT (id) DO NOTHING;
+
+
+-- Drop stale policies and recreate cleanly
+DROP POLICY IF EXISTS "events_owner"  ON events;
+DROP POLICY IF EXISTS "events_select" ON events;
+DROP POLICY IF EXISTS "events_insert" ON events;
+DROP POLICY IF EXISTS "events_update" ON events;
+DROP POLICY IF EXISTS "events_delete" ON events;
+
+CREATE POLICY "events_select" ON events
+  FOR SELECT USING (is_event_member(id));
+
+CREATE POLICY "events_insert" ON events
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "events_update" ON events
+  FOR UPDATE USING (is_event_member(id));
+
+CREATE POLICY "events_delete" ON events
+  FOR DELETE USING (auth.uid() = user_id);
