@@ -11,10 +11,11 @@ interface Props {
   totalGuests: number
   assignedCount: number
   onAddGuest: (name: string) => Promise<void>
+  onDeleteGuest: (guestId: string) => void
   onOpenCSVImport: () => void
 }
 
-export default function GuestSidebar({ guests, totalGuests, assignedCount, onAddGuest, onOpenCSVImport }: Props) {
+export default function GuestSidebar({ guests, totalGuests, assignedCount, onAddGuest, onDeleteGuest, onOpenCSVImport }: Props) {
   const [search, setSearch] = useState('')
   const [addName, setAddName] = useState('')
   const [isAdding, setIsAdding] = useState(false)
@@ -73,7 +74,7 @@ export default function GuestSidebar({ guests, totalGuests, assignedCount, onAdd
             )}
           </div>
         ) : (
-          filtered.map((guest) => <GuestItem key={guest.id} guest={guest} />)
+          filtered.map((guest) => <GuestItem key={guest.id} guest={guest} onDelete={onDeleteGuest} />)
         )}
       </div>
 
