@@ -4,6 +4,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
 
+  // Skip auth routes so we never interfere with the OAuth code exchange
+  const { pathname } = request.nextUrl
+  if (pathname.startsWith('/auth/')) return response
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -23,9 +27,13 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Refreshes the session cookie so it doesn't expire mid-session.
-  // Required for RLS to see auth.uid() on client-side requests.
-  await supabase.auth.getUser()
+  // Refreshes the session so auth.uid() is valid in RLS.
+  // Wrapped in try/catch so a Supabase network hiccup never breaks navigation.
+  try {
+    await supabase.auth.getUser()
+  } catch {
+    // non-fatal — page-level auth checks will still handle unauthenticated state
+  }
 
   return response
 }
