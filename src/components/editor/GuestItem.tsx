@@ -3,16 +3,17 @@
 import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
-import { GripVertical, Tag } from 'lucide-react'
+import { GripVertical, Tag, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { getGroupColor } from '@/lib/groups'
 import type { Guest } from '@/types'
 
 interface Props {
   guest: Guest
+  onDelete?: (guestId: string) => void
 }
 
-export default function GuestItem({ guest }: Props) {
+export default function GuestItem({ guest, onDelete }: Props) {
   const supabase = createClient()
   const [editingGroup, setEditingGroup] = useState(false)
   const [groupDraft, setGroupDraft] = useState(guest.group_name ?? '')
@@ -38,7 +39,7 @@ export default function GuestItem({ guest }: Props) {
       style={{ transform: CSS.Translate.toString(transform) }}
       {...listeners}
       {...attributes}
-      className={`flex items-start gap-1.5 px-2.5 py-2 text-sm rounded-lg border transition-all select-none ${
+      className={`group flex items-start gap-1.5 px-2.5 py-2 text-sm rounded-lg border transition-all select-none ${
         isDragging
           ? 'opacity-40 border-gold-300 bg-gold-50'
           : 'bg-white border-gold-200 hover:border-gold-400 hover:shadow-sm cursor-grab active:cursor-grabbing'
@@ -89,6 +90,16 @@ export default function GuestItem({ guest }: Props) {
           </button>
         )}
       </div>
+      {onDelete && (
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onDelete(guest.id) }}
+          className="shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all"
+          title="Remove guest"
+        >
+          <X size={12} />
+        </button>
+      )}
     </div>
   )
 }

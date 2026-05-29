@@ -211,6 +211,18 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
     if (data) setGuests((prev) => [...prev, data as Guest])
   }
 
+  async function handleDeleteGuest(guestId: string) {
+    const guest = guests.find((g) => g.id === guestId)
+    if (!confirm(`Remove ${guest?.name ?? 'this guest'}? This cannot be undone.`)) return
+    const existing = assignmentByGuest.get(guestId)
+    if (existing) {
+      setAssignments((prev) => prev.filter((a) => a.guest_id !== guestId))
+      await supabase.from('seat_assignments').delete().eq('id', existing.id)
+    }
+    setGuests((prev) => prev.filter((g) => g.id !== guestId))
+    await supabase.from('guests').delete().eq('id', guestId)
+  }
+
   function handleGuestsImported(newGuests: Guest[]) {
     setGuests((prev) => [...prev, ...newGuests])
     setShowCSVImport(false)
@@ -263,6 +275,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
         onOpenTableConfig={() => setShowTableConfig(true)}
         onOpenCSVImport={() => setShowCSVImport(true)}
         onOpenShare={() => setShowShare(true)}
+        onDeleteGuest={handleDeleteGuest}
       />
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -273,6 +286,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
               totalGuests={guests.length}
               assignedCount={assignments.length}
               onAddGuest={handleAddGuest}
+              onDeleteGuest={handleDeleteGuest}
               onOpenCSVImport={() => setShowCSVImport(true)}
             />
             <TableCanvas
