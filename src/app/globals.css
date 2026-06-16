@@ -212,4 +212,6 @@ body {
 @layer utilities {
   .drag-handle { cursor: grab; }
   .drag-handle:active { cursor: grabbing; }
+  /* Safe bottom padding for iPhone home bar */
+  .pb-safe { padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
 }
