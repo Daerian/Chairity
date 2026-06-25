@@ -6,7 +6,7 @@ import type { Guest, SeatingTable, SeatAssignment } from '@/types'
 import { getGroupColor } from '@/lib/groups'
 
 interface Props {
-  event: { id: string; name: string; event_date: string | null }
+  event: { id: string; name: string; event_date: string | null; show_seat_numbers: boolean }
   guests: Guest[]
   tables: SeatingTable[]
   assignments: SeatAssignment[]
@@ -15,6 +15,7 @@ interface Props {
 }
 
 export default function EventViewer({ event, guests, tables, assignments, embedded = false }: Props) {
+  const showSeatNumbers = event.show_seat_numbers
   const [search, setSearch] = useState('')
 
   const guestMap = useMemo(() => new Map(guests.map((g) => [g.id, g])), [guests])
@@ -104,7 +105,7 @@ export default function EventViewer({ event, guests, tables, assignments, embedd
                         <p className="text-[11px] font-semibold uppercase tracking-widest text-gold-500 mb-0.5">Your table</p>
                         <p className="font-display font-bold text-2xl text-gold-700 leading-none">{table.name}</p>
                       </div>
-                      {seatNumber != null && (
+                      {showSeatNumbers && seatNumber != null && (
                         <div className="text-right shrink-0">
                           <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 mb-0.5">Seat</p>
                           <p className="font-bold text-2xl text-gray-700 leading-none">{seatNumber}</p>
@@ -141,7 +142,9 @@ export default function EventViewer({ event, guests, tables, assignments, embedd
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ background: getGroupColor(guest.group_name) }} />
                       )}
                       <span className="flex-1 text-sm text-gray-700">{guest.name}</span>
-                      <span className="text-xs text-event-muted shrink-0">Seat {seatNumber}</span>
+                      {showSeatNumbers && (
+                        <span className="text-xs text-event-muted shrink-0">Seat {seatNumber}</span>
+                      )}
                     </li>
                   ))}
                 </ul>

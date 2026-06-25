@@ -11,15 +11,16 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS events (
-  id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id      UUID        REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-  name         TEXT        NOT NULL,
-  description  TEXT,
-  event_date   DATE,
-  invite_token UUID        NOT NULL DEFAULT gen_random_uuid(),
-  floor_layout JSONB       DEFAULT '{"room_width":1200,"room_height":800,"snap_grid":40}'::jsonb,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           UUID        REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  name              TEXT        NOT NULL,
+  description       TEXT,
+  event_date        DATE,
+  invite_token      UUID        NOT NULL DEFAULT gen_random_uuid(),
+  floor_layout      JSONB       DEFAULT '{"room_width":1200,"room_height":800,"snap_grid":40}'::jsonb,
+  show_seat_numbers BOOLEAN     NOT NULL DEFAULT true,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS events_invite_token_idx ON events(invite_token);

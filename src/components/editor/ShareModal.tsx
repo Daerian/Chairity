@@ -9,11 +9,15 @@ import type { Collaborator } from '@/types'
 interface Props {
   eventId: string
   inviteToken: string
+  showSeatNumbers: boolean
   onClose: () => void
   onTokenRegenerated: (newToken: string) => void
+  onShowSeatNumbersChange: (value: boolean) => void
 }
 
-export default function ShareModal({ eventId, inviteToken, onClose, onTokenRegenerated }: Props) {
+export default function ShareModal({
+  eventId, inviteToken, showSeatNumbers, onClose, onTokenRegenerated, onShowSeatNumbersChange,
+}: Props) {
   const supabase = createClient()
   const [collaborators, setCollaborators] = useState<Collaborator[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,6 +69,12 @@ export default function ShareModal({ eventId, inviteToken, onClose, onTokenRegen
     setCollaborators((prev) => prev.filter((c) => c.id !== collaboratorId))
   }
 
+  async function toggleShowSeatNumbers() {
+    const next = !showSeatNumbers
+    onShowSeatNumbersChange(next)
+    await supabase.from('events').update({ show_seat_numbers: next }).eq('id', eventId)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
@@ -110,6 +120,31 @@ export default function ShareModal({ eventId, inviteToken, onClose, onTokenRegen
                 </a>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={toggleShowSeatNumbers}
+              className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-event-border hover:border-gold-300 hover:bg-gold-50 transition-colors text-left"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-700">Show seat numbers</p>
+                <p className="text-xs text-event-muted mt-0.5">
+                  When off, guests only see their table — not the seat.
+                </p>
+              </div>
+              <span
+                aria-hidden
+                className={`relative shrink-0 inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  showSeatNumbers ? 'bg-gold-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                    showSeatNumbers ? 'translate-x-4' : 'translate-x-0.5'
+                  }`}
+                />
+              </span>
+            </button>
           </div>
 
           <div className="border-t border-event-border" />
