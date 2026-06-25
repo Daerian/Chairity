@@ -48,6 +48,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
 
   const isMobile = useIsMobile()
   const [forceDesktop, setForceDesktop] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const guestMap = useMemo(() => new Map(guests.map((g) => [g.id, g])), [guests])
@@ -309,25 +310,29 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
         assignments={assignments}
         isOwner={isOwner}
         view={view}
+        sidebarOpen={sidebarOpen}
         onViewChange={setView}
         onRename={handleRenameEvent}
         onOpenTableConfig={() => setShowTableConfig(true)}
         onOpenCSVImport={() => setShowCSVImport(true)}
         onOpenShare={() => setShowShare(true)}
         onDeleteGuest={handleDeleteGuest}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         {view === 'grid' ? (
           <div className="flex flex-1 overflow-hidden">
-            <GuestSidebar
-              guests={unassignedGuests}
-              totalGuests={guests.length}
-              assignedCount={assignments.length}
-              onAddGuest={handleAddGuest}
-              onDeleteGuest={handleDeleteGuest}
-              onOpenCSVImport={() => setShowCSVImport(true)}
-            />
+            <div className={`transition-all duration-300 overflow-hidden shrink-0 ${sidebarOpen ? 'w-64' : 'w-0'}`}>
+              <GuestSidebar
+                guests={unassignedGuests}
+                totalGuests={guests.length}
+                assignedCount={assignments.length}
+                onAddGuest={handleAddGuest}
+                onDeleteGuest={handleDeleteGuest}
+                onOpenCSVImport={() => setShowCSVImport(true)}
+              />
+            </div>
             <TableCanvas
               tables={tables}
               guestMap={guestMap}
@@ -336,6 +341,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
               onOpenTableConfig={() => setShowTableConfig(true)}
             />
           </div>
+
         ) : (
           <FloorPlanCanvas
             tables={tables}
