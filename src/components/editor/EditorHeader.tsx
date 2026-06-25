@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import {
   Settings2, Upload, ChevronLeft, Check, Loader2, Share2, LayoutGrid,
-  Map as MapIcon, Search, X, MoreVertical, Download, PanelLeftClose, PanelLeftOpen,
+  Map as MapIcon, Search, X, MoreVertical, Download,
 } from 'lucide-react'
 import type { Guest, SeatingTable, SeatAssignment } from '@/types'
 import { getGroupColor } from '@/lib/groups'
@@ -22,20 +22,18 @@ interface Props {
   assignments: SeatAssignment[]
   isOwner: boolean
   view: 'grid' | 'floor'
-  sidebarOpen: boolean
   onViewChange: (view: 'grid' | 'floor') => void
   onRename: (name: string) => void
   onOpenTableConfig: () => void
   onOpenCSVImport: () => void
   onOpenShare: () => void
   onDeleteGuest: (guestId: string) => void
-  onToggleSidebar: () => void
 }
 
 export default function EditorHeader({
-  eventName, saving, tables, guests, assignments, isOwner, view, sidebarOpen,
+  eventName, saving, tables, guests, assignments, isOwner, view,
   onViewChange, onRename, onOpenTableConfig, onOpenCSVImport, onOpenShare,
-  onDeleteGuest, onToggleSidebar,
+  onDeleteGuest,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(eventName)
@@ -98,16 +96,6 @@ export default function EditorHeader({
     else setDraft(eventName)
     setEditing(false)
   }
-
-  const sidebarToggleBtn = (
-    <button
-      onClick={onToggleSidebar}
-      title={sidebarOpen ? 'Hide guest panel' : 'Show guest panel'}
-      className="flex items-center justify-center w-8 h-8 rounded-lg border border-event-border hover:border-gold-400 hover:bg-gold-50 transition-all text-gray-500"
-    >
-      {sidebarOpen ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}
-    </button>
-  )
 
   const viewToggle = (
     <div className="flex items-center border border-event-border rounded-lg overflow-hidden shrink-0">
@@ -234,7 +222,6 @@ export default function EditorHeader({
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {sidebarToggleBtn}
           {viewToggle}
           {searchDropdown}
 
@@ -351,7 +338,6 @@ export default function EditorHeader({
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {sidebarToggleBtn}
         {viewToggle}
 
         <button onClick={onOpenCSVImport} className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-event-border hover:border-gold-400 hover:bg-gold-50 transition-all">

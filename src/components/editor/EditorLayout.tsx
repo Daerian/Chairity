@@ -7,7 +7,7 @@ import {
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import { ChevronLeft, Monitor } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Monitor } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { ChairityEvent, Guest, SeatingTable, SeatAssignment, DragData, FloorLayout } from '@/types'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -310,14 +310,12 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
         assignments={assignments}
         isOwner={isOwner}
         view={view}
-        sidebarOpen={sidebarOpen}
         onViewChange={setView}
         onRename={handleRenameEvent}
         onOpenTableConfig={() => setShowTableConfig(true)}
         onOpenCSVImport={() => setShowCSVImport(true)}
         onOpenShare={() => setShowShare(true)}
         onDeleteGuest={handleDeleteGuest}
-        onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -333,6 +331,13 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
                 onOpenCSVImport={() => setShowCSVImport(true)}
               />
             </div>
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              title={sidebarOpen ? 'Hide guest panel' : 'Show guest panel'}
+              className="shrink-0 self-center -ml-px w-5 h-14 flex items-center justify-center bg-white border border-event-border border-l-0 rounded-r-md shadow-sm hover:bg-gold-50 hover:text-gold-600 text-gray-400 transition-colors z-10"
+            >
+              {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+            </button>
             <TableCanvas
               tables={tables}
               guestMap={guestMap}
