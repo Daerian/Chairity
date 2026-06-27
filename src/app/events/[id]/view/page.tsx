@@ -13,7 +13,7 @@ export default async function EventViewPage({ params }: Props) {
 
   const { data: event } = await supabase
     .from('events')
-    .select('id, name, event_date')
+    .select('id, name, event_date, show_seat_numbers')
     .eq('id', id)
     .single()
 

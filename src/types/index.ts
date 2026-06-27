@@ -12,6 +12,7 @@ export interface ChairityEvent {
   event_date: string | null
   invite_token: string
   floor_layout: FloorLayout | null
+  show_seat_numbers: boolean
   created_at: string
   updated_at: string
 }

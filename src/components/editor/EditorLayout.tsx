@@ -33,6 +33,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
 
   const [eventName, setEventName] = useState(event.name)
   const [inviteToken, setInviteToken] = useState(event.invite_token)
+  const [showSeatNumbers, setShowSeatNumbers] = useState(event.show_seat_numbers)
   const [guests, setGuests] = useState<Guest[]>(initialGuests)
   const [tables, setTables] = useState<SeatingTable[]>(initialTables)
   const [assignments, setAssignments] = useState<SeatAssignment[]>(initialAssignments)
@@ -290,7 +291,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
           </button>
         </div>
         <EventViewer
-          event={{ id: event.id, name: eventName, event_date: event.event_date }}
+          event={{ id: event.id, name: eventName, event_date: event.event_date, show_seat_numbers: showSeatNumbers }}
           guests={guests}
           tables={tables}
           assignments={assignments}
@@ -383,8 +384,10 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
         <ShareModal
           eventId={event.id}
           inviteToken={inviteToken}
+          showSeatNumbers={showSeatNumbers}
           onClose={() => setShowShare(false)}
           onTokenRegenerated={setInviteToken}
+          onShowSeatNumbersChange={setShowSeatNumbers}
         />
       )}
     </div>
