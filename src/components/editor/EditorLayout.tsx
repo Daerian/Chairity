@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useMemo, useEffect, useRef } from 'react'
-import Link from 'next/link'
 import {
   DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
   type DragStartEvent, type DragEndEvent,
 } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
-import { ChevronLeft, ChevronRight, Monitor } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import type { ChairityEvent, Guest, SeatingTable, SeatAssignment, DragData, FloorLayout } from '@/types'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -16,7 +15,6 @@ import TableCanvas from './TableCanvas'
 import FloorPlanCanvas from './FloorPlanCanvas'
 import EditorHeader from './EditorHeader'
 import TableConfigModal from './TableConfigModal'
-import EventViewer from '@/components/viewer/EventViewer'
 import CSVImport from './CSVImport'
 import ShareModal from './ShareModal'
 
@@ -48,8 +46,14 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
   )
 
   const isMobile = useIsMobile()
-  const [forceDesktop, setForceDesktop] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const didInitSidebar = useRef(false)
+  useEffect(() => {
+    if (isMobile !== null && !didInitSidebar.current) {
+      setSidebarOpen(!isMobile)
+      didInitSidebar.current = true
+    }
+  }, [isMobile])
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const guestMap = useMemo(() => new Map(guests.map((g) => [g.id, g])), [guests])
@@ -267,39 +271,6 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
 
   const activeDragGuest = activeDrag?.guestId ? guestMap.get(activeDrag.guestId) : null
   const activeDragTable = activeDrag?.type === 'table' ? tables.find((t) => t.id === activeDrag.tableId) : null
-
-  // ─── Mobile view ────────────────────────────────────────────────────────────
-  // null = still detecting (first SSR render); skip to avoid flash.
-  // forceDesktop lets mobile users opt into the full editor.
-  if (isMobile === true && !forceDesktop) {
-    return (
-      <div className="flex flex-col h-screen overflow-hidden bg-event-bg">
-        {/* Slim context bar */}
-        <div className="shrink-0 flex items-center justify-between gap-3 px-4 py-2.5 bg-white border-b border-event-border shadow-sm">
-          <Link href="/dashboard" className="flex items-center gap-1 text-sm text-event-muted hover:text-gold-600 transition-colors">
-            <ChevronLeft size={15} />
-            Dashboard
-          </Link>
-          <p className="text-sm font-semibold text-gray-800 truncate">{eventName}</p>
-          <button
-            onClick={() => setForceDesktop(true)}
-            className="flex items-center gap-1 text-xs text-gold-600 font-medium hover:text-gold-700 transition-colors shrink-0"
-            title="Switch to full editor"
-          >
-            <Monitor size={13} />
-            Desktop
-          </button>
-        </div>
-        <EventViewer
-          event={{ id: event.id, name: eventName, event_date: event.event_date, show_seat_numbers: showSeatNumbers }}
-          guests={guests}
-          tables={tables}
-          assignments={assignments}
-          embedded
-        />
-      </div>
-    )
-  }
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-event-bg">
