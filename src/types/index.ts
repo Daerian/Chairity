@@ -16,6 +16,11 @@ export type FloorAreaType =
   | 'patio'
   | 'gift_table'
   | 'restroom'
+  | 'dj_booth'
+  | 'photo_booth'
+  | 'buffet'
+  | 'coat_check'
+  | 'guestbook'
   | 'custom'
 
 export interface FloorArea {
@@ -88,7 +93,7 @@ export interface Collaborator {
 }
 
 export interface DragData {
-  type: 'guest' | 'seated' | 'table'
+  type: 'guest' | 'seated' | 'table' | 'floor-table'
   guestId?: string
   tableId?: string
   seatNumber?: number

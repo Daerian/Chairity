@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useDroppable } from '@dnd-kit/core'
 import {
-  Settings, Circle, Square, Printer, Plus, Check, AlertTriangle, Loader2, Trash2,
+  Settings, Circle, Square, Printer, Plus, Check, AlertTriangle, Loader2, Trash2, Copy, Eraser, X,
 } from 'lucide-react'
 import type { Guest, SeatingTable, FloorLayout, FloorArea, FloorAreaType } from '@/types'
 import { AREA_PRESETS, AREA_TYPE_LIST, newArea } from '@/lib/floorAreas'
@@ -11,6 +12,12 @@ const RECT_W = 160
 const RECT_H = 110
 const ROUND_SIZE = 130
 const MIN_AREA = 40
+
+/** Footprint of a table by shape — shared with EditorLayout's drop placement math. */
+export const TABLE_DIMS = {
+  rectangle: { w: RECT_W, h: RECT_H },
+  round: { w: ROUND_SIZE, h: ROUND_SIZE },
+} as const
 
 export type FloorSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
@@ -36,6 +43,7 @@ type Drag =
 
 interface Props {
   tables: SeatingTable[]
+  totalTableCount: number
   floorLayout: FloorLayout
   floorAreas: FloorArea[]
   guestMap: Map<string, Guest>
@@ -43,16 +51,19 @@ interface Props {
   saveStatus: FloorSaveStatus
   onSavePositions: (positions: { tableId: string; x: number; y: number }[]) => void
   onShapeChange: (tableId: string, shape: 'rectangle' | 'round') => void
+  onUnplaceTable: (tableId: string) => void
   onFloorLayoutChange: (layout: FloorLayout) => void
   onAreasChange: (areas: FloorArea[]) => void
   onOpenTableConfig: () => void
 }
 
 export default function FloorPlanCanvas({
-  tables, floorLayout, floorAreas, guestMap, assignmentBySeat, saveStatus,
-  onSavePositions, onShapeChange, onFloorLayoutChange, onAreasChange, onOpenTableConfig,
+  tables, totalTableCount, floorLayout, floorAreas, guestMap, assignmentBySeat, saveStatus,
+  onSavePositions, onShapeChange, onUnplaceTable, onFloorLayoutChange, onAreasChange, onOpenTableConfig,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: 'floor-canvas', data: { type: 'floor-canvas' } })
+  const setCanvasRef = (el: HTMLDivElement | null) => { canvasRef.current = el; setDroppableRef(el) }
   const [drag, setDrag] = useState<Drag | null>(null)
   const [live, setLive] = useState<Rect | null>(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -178,6 +189,24 @@ export default function FloorPlanCanvas({
     onAreasChange(floorAreas.filter((a) => a.id !== id))
   }
 
+  function duplicateArea(area: FloorArea) {
+    const copy: FloorArea = {
+      ...area,
+      id: crypto.randomUUID(),
+      x: clamp(area.x + 24, 0, roomW - area.w),
+      y: clamp(area.y + 24, 0, roomH - area.h),
+    }
+    onAreasChange([...floorAreas, copy])
+  }
+
+  function clearAllAreas() {
+    setShowAreaMenu(false)
+    if (floorAreas.length === 0) return
+    if (confirm(`Remove all ${floorAreas.length} area${floorAreas.length !== 1 ? 's' : ''}? This cannot be undone.`)) {
+      onAreasChange([])
+    }
+  }
+
   function setAreaShape(id: string, shape: 'rectangle' | 'round') {
     onAreasChange(floorAreas.map((a) => a.id === id ? { ...a, shape } : a))
   }
@@ -210,7 +239,7 @@ export default function FloorPlanCanvas({
     return n
   }
 
-  if (tables.length === 0) {
+  if (totalTableCount === 0) {
     return (
       <main className="flex-1 flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -269,6 +298,14 @@ export default function FloorPlanCanvas({
                     </button>
                   )
                 })}
+                {floorAreas.length > 0 && (
+                  <button
+                    onClick={clearAllAreas}
+                    className="col-span-2 mt-1 flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-lg text-red-500 hover:bg-red-50 border-t border-event-border pt-2 transition-colors"
+                  >
+                    <Eraser size={13} /> Clear all areas ({floorAreas.length})
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -320,13 +357,21 @@ export default function FloorPlanCanvas({
       {/* Canvas */}
       <div className="flex-1 overflow-auto p-4">
         <div
-          ref={canvasRef}
-          className="relative rounded-xl border-2 border-gold-100 shadow-inner floor-plan-canvas"
+          ref={setCanvasRef}
+          className={`relative rounded-xl border-2 shadow-inner floor-plan-canvas transition-colors ${isOver ? 'border-gold-400' : 'border-gold-100'}`}
           style={{ width: roomW, height: roomH, background: '#faf7f2', minWidth: roomW, minHeight: roomH, ...gridBg }}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
         >
+          {tables.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" data-print-hide>
+              <p className="text-sm text-event-muted bg-white/70 px-4 py-2 rounded-lg border border-dashed border-gold-200">
+                Drag a table from the list to place it on the floor plan.
+              </p>
+            </div>
+          )}
+
           {/* Areas layer — rendered first so tables sit on top */}
           {floorAreas.map((area) => {
             const preset = AREA_PRESETS[area.type]
@@ -384,6 +429,13 @@ export default function FloorPlanCanvas({
                     <Circle size={11} />
                   </button>
                   <button
+                    onClick={() => duplicateArea(area)}
+                    className="px-1.5 py-1 border-l border-event-border text-gray-400 hover:bg-gold-50 hover:text-gold-600"
+                    title="Duplicate area"
+                  >
+                    <Copy size={11} />
+                  </button>
+                  <button
                     onClick={() => deleteArea(area.id)}
                     className="px-1.5 py-1 border-l border-event-border text-gray-400 hover:bg-red-50 hover:text-red-500"
                     title="Delete area"
@@ -424,6 +476,15 @@ export default function FloorPlanCanvas({
                 style={{ left: pos.x, top: pos.y, width: w, height: h }}
                 onPointerDown={(e) => startTableDrag(e, table, i)}
               >
+                {/* Remove from floor plan (send back to the table list) */}
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => onUnplaceTable(table.id)}
+                  className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-30 bg-white border border-event-border rounded-full p-0.5 shadow-sm text-gray-400 hover:text-red-500"
+                  title="Remove from floor plan"
+                >
+                  <X size={12} />
+                </button>
                 {isRound ? (
                   <div className="absolute inset-0">
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 pointer-events-none">

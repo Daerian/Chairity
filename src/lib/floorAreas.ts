@@ -1,6 +1,7 @@
 import {
   Music, Wine, Cake, Mic, Heart, DoorOpen, LogOut,
   Footprints, Trees, Gift, DoorClosed, Shapes,
+  Headphones, Camera, Utensils, Shirt, BookOpen,
   type LucideIcon,
 } from 'lucide-react'
 import type { FloorArea, FloorAreaType } from '@/types'
@@ -30,13 +31,19 @@ export const AREA_PRESETS: Record<FloorAreaType, AreaPreset> = {
   patio:       { label: 'Patio',       icon: Trees,     bg: 'rgba(5,150,105,0.10)',  border: '#6ee7b7', text: '#047857', defaultW: 220, defaultH: 160, shape: 'rectangle' },
   gift_table:  { label: 'Gift Table',  icon: Gift,      bg: 'rgba(13,148,136,0.10)', border: '#5eead4', text: '#0f766e', defaultW: 130, defaultH: 90,  shape: 'rectangle' },
   restroom:    { label: 'Restroom',    icon: DoorClosed, bg: 'rgba(8,145,178,0.10)', border: '#67e8f9', text: '#0e7490', defaultW: 110, defaultH: 90,  shape: 'rectangle' },
+  dj_booth:    { label: 'DJ Booth',    icon: Headphones, bg: 'rgba(124,58,237,0.10)', border: '#c4b5fd', text: '#6d28d9', defaultW: 140, defaultH: 90,  shape: 'rectangle' },
+  photo_booth: { label: 'Photo Booth', icon: Camera,    bg: 'rgba(2,132,199,0.10)',  border: '#7dd3fc', text: '#0369a1', defaultW: 130, defaultH: 130, shape: 'rectangle' },
+  buffet:      { label: 'Buffet',      icon: Utensils,  bg: 'rgba(202,138,4,0.10)',  border: '#fde047', text: '#a16207', defaultW: 240, defaultH: 80,  shape: 'rectangle' },
+  coat_check:  { label: 'Coat Check',  icon: Shirt,     bg: 'rgba(71,85,105,0.10)',  border: '#cbd5e1', text: '#334155', defaultW: 120, defaultH: 80,  shape: 'rectangle' },
+  guestbook:   { label: 'Guestbook',   icon: BookOpen,  bg: 'rgba(180,83,9,0.10)',   border: '#fdba74', text: '#9a3412', defaultW: 110, defaultH: 80,  shape: 'rectangle' },
   custom:      { label: 'Area',        icon: Shapes,    bg: 'rgba(107,114,128,0.10)', border: '#d1d5db', text: '#4b5563', defaultW: 160, defaultH: 120, shape: 'rectangle' },
 }
 
 /** Order shown in the "Add area" palette. */
 export const AREA_TYPE_LIST: FloorAreaType[] = [
-  'dance_floor', 'bar', 'head_table', 'stage', 'cake_table', 'gift_table',
-  'entrance', 'exit', 'staircase', 'patio', 'restroom', 'custom',
+  'dance_floor', 'bar', 'head_table', 'stage', 'dj_booth', 'cake_table',
+  'buffet', 'gift_table', 'guestbook', 'photo_booth', 'coat_check', 'entrance',
+  'exit', 'staircase', 'patio', 'restroom', 'custom',
 ]
 
 function snap(val: number, grid: number): number {

@@ -346,6 +346,8 @@ DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE seat_assignments;   EX
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE guests;              EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE seating_tables;      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE event_collaborators; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- events is published so collaborators live-sync floor_layout + floor_areas (room settings & areas)
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.events;       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
 -- ============================================================
