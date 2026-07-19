@@ -8,11 +8,12 @@ import {
 import { arrayMove } from '@dnd-kit/sortable'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import type { ChairityEvent, Guest, SeatingTable, SeatAssignment, DragData, FloorLayout } from '@/types'
+import type { ChairityEvent, Guest, SeatingTable, SeatAssignment, DragData, FloorLayout, FloorArea } from '@/types'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import GuestSidebar from './GuestSidebar'
 import TableCanvas from './TableCanvas'
-import FloorPlanCanvas from './FloorPlanCanvas'
+import FloorPlanCanvas, { type FloorSaveStatus, TABLE_DIMS } from './FloorPlanCanvas'
+import FloorTableSidebar from './FloorTableSidebar'
 import EditorHeader from './EditorHeader'
 import TableConfigModal from './TableConfigModal'
 import CSVImport from './CSVImport'
@@ -44,6 +45,17 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
   const [floorLayout, setFloorLayout] = useState<FloorLayout>(
     event.floor_layout ?? { room_width: 1200, room_height: 800, snap_grid: 40 }
   )
+  const [floorAreas, setFloorAreas] = useState<FloorArea[]>(event.floor_areas ?? [])
+  const [floorSaveStatus, setFloorSaveStatus] = useState<FloorSaveStatus>('idle')
+
+  function reportSaveDone(error: unknown) {
+    if (error) {
+      console.error('floor plan save failed:', error)
+      setFloorSaveStatus('error')
+    } else {
+      setFloorSaveStatus('saved')
+    }
+  }
 
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -66,6 +78,8 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
     () => guests.filter((g) => !assignmentByGuest.has(g.id)),
     [guests, assignmentByGuest]
   )
+  const placedTables = useMemo(() => tables.filter((t) => t.pos_x != null && t.pos_y != null), [tables])
+  const unplacedTables = useMemo(() => tables.filter((t) => t.pos_x == null || t.pos_y == null), [tables])
 
   const tablesRef = useRef(tables)
   useEffect(() => { tablesRef.current = tables }, [tables])
@@ -96,6 +110,16 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
         () => refetchGuests())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'seating_tables', filter: `event_id=eq.${event.id}` },
         () => refetchTables())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'events', filter: `id=eq.${event.id}` },
+        (payload) => {
+          const row = payload.new as { floor_areas?: FloorArea[] | null; floor_layout?: FloorLayout | null }
+          if (row.floor_areas != null) {
+            setFloorAreas((prev) => JSON.stringify(prev) === JSON.stringify(row.floor_areas) ? prev : row.floor_areas!)
+          }
+          if (row.floor_layout != null) {
+            setFloorLayout((prev) => JSON.stringify(prev) === JSON.stringify(row.floor_layout) ? prev : row.floor_layout!)
+          }
+        })
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -132,6 +156,25 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
 
     const drag = active.data.current as DragData
     if (!drag) return
+
+    // Place a table from the floor-plan sidebar onto the canvas
+    if (drag.type === 'floor-table') {
+      const tableId = drag.tableId
+      if (!over || over.id !== 'floor-canvas' || !tableId) return
+      const table = tables.find((t) => t.id === tableId)
+      if (!table) return
+      const pe = e.activatorEvent as PointerEvent
+      const canvasRect = over.rect
+      const dims = TABLE_DIMS[table.shape]
+      const g = floorLayout.snap_grid
+      const snapFn = (v: number) => (g > 0 ? Math.round(v / g) * g : v)
+      const rawX = pe.clientX + e.delta.x - canvasRect.left - dims.w / 2
+      const rawY = pe.clientY + e.delta.y - canvasRect.top - dims.h / 2
+      const x = Math.max(0, Math.min(Math.max(0, floorLayout.room_width - dims.w), snapFn(rawX)))
+      const y = Math.max(0, Math.min(Math.max(0, floorLayout.room_height - dims.h), snapFn(rawY)))
+      await handleSaveFloorPositions([{ tableId, x, y }])
+      return
+    }
 
     // Table reorder via drag handle
     if (drag.type === 'table') {
@@ -251,26 +294,46 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
       const upd = positions.find((p) => p.tableId === t.id)
       return upd ? { ...t, pos_x: upd.x, pos_y: upd.y } : t
     }))
-    await Promise.all(
+    setFloorSaveStatus('saving')
+    const results = await Promise.all(
       positions.map(({ tableId, x, y }) =>
         supabase.from('seating_tables').update({ pos_x: x, pos_y: y }).eq('id', tableId)
       )
     )
+    reportSaveDone(results.find((r) => r.error)?.error ?? null)
   }
 
   async function handleShapeChange(tableId: string, shape: 'rectangle' | 'round') {
     setTables((prev) => prev.map((t) => t.id === tableId ? { ...t, shape } : t))
-    await supabase.from('seating_tables').update({ shape }).eq('id', tableId)
+    setFloorSaveStatus('saving')
+    const { error } = await supabase.from('seating_tables').update({ shape }).eq('id', tableId)
+    reportSaveDone(error)
+  }
+
+  async function handleUnplaceTable(tableId: string) {
+    setTables((prev) => prev.map((t) => t.id === tableId ? { ...t, pos_x: null, pos_y: null } : t))
+    setFloorSaveStatus('saving')
+    const { error } = await supabase.from('seating_tables').update({ pos_x: null, pos_y: null }).eq('id', tableId)
+    reportSaveDone(error)
   }
 
   async function handleFloorLayoutChange(layout: FloorLayout) {
     setFloorLayout(layout)
+    setFloorSaveStatus('saving')
     const { error } = await supabase.from('events').update({ floor_layout: layout }).eq('id', event.id)
-    if (error) console.error('floor layout save failed:', error.message)
+    reportSaveDone(error)
+  }
+
+  async function handleAreasChange(areas: FloorArea[]) {
+    setFloorAreas(areas)
+    setFloorSaveStatus('saving')
+    const { error } = await supabase.from('events').update({ floor_areas: areas }).eq('id', event.id)
+    reportSaveDone(error)
   }
 
   const activeDragGuest = activeDrag?.guestId ? guestMap.get(activeDrag.guestId) : null
   const activeDragTable = activeDrag?.type === 'table' ? tables.find((t) => t.id === activeDrag.tableId) : null
+  const activeFloorTable = activeDrag?.type === 'floor-table' ? tables.find((t) => t.id === activeDrag.tableId) : null
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-event-bg">
@@ -320,16 +383,37 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
           </div>
 
         ) : (
-          <FloorPlanCanvas
-            tables={tables}
-            floorLayout={floorLayout}
-            guestMap={guestMap}
-            assignmentBySeat={assignmentBySeat}
-            onSavePositions={handleSaveFloorPositions}
-            onShapeChange={handleShapeChange}
-            onFloorLayoutChange={handleFloorLayoutChange}
-            onOpenTableConfig={() => setShowTableConfig(true)}
-          />
+          <div className="flex flex-1 overflow-hidden">
+            <div className={`transition-all duration-300 overflow-hidden shrink-0 ${sidebarOpen ? 'w-64' : 'w-0'}`}>
+              <FloorTableSidebar
+                tables={unplacedTables}
+                placedCount={placedTables.length}
+                totalCount={tables.length}
+              />
+            </div>
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              title={sidebarOpen ? 'Hide table list' : 'Show table list'}
+              className="shrink-0 self-center -ml-px w-5 h-14 flex items-center justify-center bg-white border border-event-border border-l-0 rounded-r-md shadow-sm hover:bg-gold-50 hover:text-gold-600 text-gray-400 transition-colors z-10"
+            >
+              {sidebarOpen ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+            </button>
+            <FloorPlanCanvas
+              tables={placedTables}
+              totalTableCount={tables.length}
+              floorLayout={floorLayout}
+              floorAreas={floorAreas}
+              guestMap={guestMap}
+              assignmentBySeat={assignmentBySeat}
+              saveStatus={floorSaveStatus}
+              onSavePositions={handleSaveFloorPositions}
+              onShapeChange={handleShapeChange}
+              onUnplaceTable={handleUnplaceTable}
+              onFloorLayoutChange={handleFloorLayoutChange}
+              onAreasChange={handleAreasChange}
+              onOpenTableConfig={() => setShowTableConfig(true)}
+            />
+          </div>
         )}
 
         <DragOverlay dropAnimation={null}>
@@ -340,6 +424,11 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
           ) : activeDragTable ? (
             <div className="bg-white rounded-xl border-2 border-gold-400 shadow-card px-4 py-3 pointer-events-none select-none">
               <span className="font-semibold text-sm text-gray-800">{activeDragTable.name}</span>
+            </div>
+          ) : activeFloorTable ? (
+            <div className="bg-white rounded-xl border-2 border-gold-400 shadow-card px-4 py-3 pointer-events-none select-none">
+              <span className="font-semibold text-sm text-gray-800">{activeFloorTable.name}</span>
+              <span className="ml-2 text-xs text-event-muted">{activeFloorTable.capacity} seats</span>
             </div>
           ) : null}
         </DragOverlay>

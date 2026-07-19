@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS events (
   event_date        DATE,
   invite_token      UUID        NOT NULL DEFAULT gen_random_uuid(),
   floor_layout      JSONB       DEFAULT '{"room_width":1200,"room_height":800,"snap_grid":40}'::jsonb,
+  floor_areas       JSONB       NOT NULL DEFAULT '[]'::jsonb,
   show_seat_numbers BOOLEAN     NOT NULL DEFAULT true,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -207,8 +208,8 @@ BEGIN
     RAISE EXCEPTION 'Not authorized';
   END IF;
 
-  INSERT INTO public.events (user_id, name, description, event_date, floor_layout)
-  SELECT auth.uid(), name || ' (copy)', description, event_date, floor_layout
+  INSERT INTO public.events (user_id, name, description, event_date, floor_layout, floor_areas)
+  SELECT auth.uid(), name || ' (copy)', description, event_date, floor_layout, floor_areas
   FROM public.events WHERE id = p_event_id
   RETURNING id INTO v_new_id;
 
@@ -345,6 +346,8 @@ DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE seat_assignments;   EX
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE guests;              EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE seating_tables;      EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE event_collaborators; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- events is published so collaborators live-sync floor_layout + floor_areas (room settings & areas)
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.events;       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 
 -- ============================================================
@@ -380,3 +383,71 @@ CREATE POLICY "events_update" ON events
 
 CREATE POLICY "events_delete" ON events
   FOR DELETE USING (auth.uid() = user_id);
+
+
+-- ============================================================
+-- Chairity — 007: repair floor-plan schema + add layout areas
+-- ============================================================
+-- Migration 003 (floor layout) was never applied to the live
+-- database, so the floor-plan editor's writes to pos_x/pos_y/
+-- shape/floor_layout silently failed (PostgREST 42703). This
+-- migration re-applies those columns idempotently and adds the
+-- new events.floor_areas column that backs labeled areas
+-- (dance floor, bar, stage, head table, entrances, etc.).
+--
+-- Safe to run multiple times.
+-- ============================================================
+
+-- Table positions and shape (from 003)
+ALTER TABLE seating_tables ADD COLUMN IF NOT EXISTS pos_x FLOAT;
+ALTER TABLE seating_tables ADD COLUMN IF NOT EXISTS pos_y FLOAT;
+ALTER TABLE seating_tables ADD COLUMN IF NOT EXISTS shape TEXT NOT NULL DEFAULT 'rectangle'
+  CHECK (shape IN ('rectangle', 'round'));
+
+-- Room layout stored per event (from 003)
+ALTER TABLE events ADD COLUMN IF NOT EXISTS floor_layout JSONB
+  DEFAULT '{"room_width":1200,"room_height":800,"snap_grid":40}'::jsonb;
+
+-- NEW: labeled floor areas stored as a JSON array per event
+ALTER TABLE events ADD COLUMN IF NOT EXISTS floor_areas JSONB NOT NULL DEFAULT '[]'::jsonb;
+
+-- Guest group for colour-coding (from 003)
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS group_name TEXT;
+
+-- ============================================================
+-- RPC: duplicate an event (copies tables + guests, no assignments)
+-- Recreated to also carry floor_areas onto the copy.
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.duplicate_event(p_event_id UUID)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_new_id UUID;
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.events WHERE id = p_event_id AND user_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Not authorized';
+  END IF;
+
+  INSERT INTO public.events (user_id, name, description, event_date, floor_layout, floor_areas)
+  SELECT auth.uid(), name || ' (copy)', description, event_date, floor_layout, floor_areas
+  FROM public.events WHERE id = p_event_id
+  RETURNING id INTO v_new_id;
+
+  INSERT INTO public.seating_tables (event_id, name, capacity, sort_order, pos_x, pos_y, shape)
+  SELECT v_new_id, name, capacity, sort_order, pos_x, pos_y, shape
+  FROM public.seating_tables WHERE event_id = p_event_id;
+
+  INSERT INTO public.guests (event_id, name, notes, group_name)
+  SELECT v_new_id, name, notes, group_name
+  FROM public.guests WHERE event_id = p_event_id;
+
+  RETURN v_new_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.duplicate_event(uuid) TO authenticated;

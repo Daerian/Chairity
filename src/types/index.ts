@@ -4,6 +4,36 @@ export interface FloorLayout {
   snap_grid: number
 }
 
+export type FloorAreaType =
+  | 'dance_floor'
+  | 'bar'
+  | 'cake_table'
+  | 'stage'
+  | 'head_table'
+  | 'entrance'
+  | 'exit'
+  | 'staircase'
+  | 'patio'
+  | 'gift_table'
+  | 'restroom'
+  | 'dj_booth'
+  | 'photo_booth'
+  | 'buffet'
+  | 'coat_check'
+  | 'guestbook'
+  | 'custom'
+
+export interface FloorArea {
+  id: string
+  type: FloorAreaType
+  label: string
+  x: number
+  y: number
+  w: number
+  h: number
+  shape: 'rectangle' | 'round'
+}
+
 export interface ChairityEvent {
   id: string
   user_id: string
@@ -12,6 +42,7 @@ export interface ChairityEvent {
   event_date: string | null
   invite_token: string
   floor_layout: FloorLayout | null
+  floor_areas: FloorArea[] | null
   show_seat_numbers: boolean
   created_at: string
   updated_at: string
@@ -62,7 +93,7 @@ export interface Collaborator {
 }
 
 export interface DragData {
-  type: 'guest' | 'seated' | 'table'
+  type: 'guest' | 'seated' | 'table' | 'floor-table'
   guestId?: string
   tableId?: string
   seatNumber?: number
