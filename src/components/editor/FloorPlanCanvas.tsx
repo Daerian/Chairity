@@ -1,14 +1,28 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Settings, Circle, Square, Printer, Save, RotateCcw } from 'lucide-react'
-import type { Guest, SeatingTable, FloorLayout } from '@/types'
+import { useDroppable } from '@dnd-kit/core'
+import {
+  Settings, Circle, Square, Printer, Plus, Check, AlertTriangle, Loader2, Trash2, Copy, Eraser, X,
+} from 'lucide-react'
+import type { Guest, SeatingTable, FloorLayout, FloorArea, FloorAreaType } from '@/types'
+import { AREA_PRESETS, AREA_TYPE_LIST, newArea } from '@/lib/floorAreas'
 
 const RECT_W = 160
 const RECT_H = 110
 const ROUND_SIZE = 130
+const MIN_AREA = 40
+
+/** Footprint of a table by shape — shared with EditorLayout's drop placement math. */
+export const TABLE_DIMS = {
+  rectangle: { w: RECT_W, h: RECT_H },
+  round: { w: ROUND_SIZE, h: ROUND_SIZE },
+} as const
+
+export type FloorSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 interface FloorPos { x: number; y: number }
+interface Rect { x: number; y: number; w: number; h: number }
 
 function defaultPos(index: number): FloorPos {
   const cols = 5
@@ -18,33 +32,47 @@ function defaultPos(index: number): FloorPos {
   }
 }
 
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(Math.max(min, max), v))
+}
+
+type Drag =
+  | { type: 'table'; id: string; offX: number; offY: number }
+  | { type: 'areaMove'; id: string; offX: number; offY: number }
+  | { type: 'areaResize'; id: string; px: number; py: number; w0: number; h0: number }
+
 interface Props {
   tables: SeatingTable[]
+  totalTableCount: number
   floorLayout: FloorLayout
+  floorAreas: FloorArea[]
   guestMap: Map<string, Guest>
   assignmentBySeat: Map<string, string>
-  onSavePositions: (positions: { tableId: string; x: number; y: number }[]) => Promise<void>
+  saveStatus: FloorSaveStatus
+  onSavePositions: (positions: { tableId: string; x: number; y: number }[]) => void
   onShapeChange: (tableId: string, shape: 'rectangle' | 'round') => void
+  onUnplaceTable: (tableId: string) => void
   onFloorLayoutChange: (layout: FloorLayout) => void
+  onAreasChange: (areas: FloorArea[]) => void
   onOpenTableConfig: () => void
 }
 
 export default function FloorPlanCanvas({
-  tables, floorLayout, guestMap, assignmentBySeat,
-  onSavePositions, onShapeChange, onFloorLayoutChange, onOpenTableConfig,
+  tables, totalTableCount, floorLayout, floorAreas, guestMap, assignmentBySeat, saveStatus,
+  onSavePositions, onShapeChange, onUnplaceTable, onFloorLayoutChange, onAreasChange, onOpenTableConfig,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
-  const [draggingId, setDraggingId] = useState<string | null>(null)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
-  const [tempPos, setTempPos] = useState<FloorPos | null>(null)
-  const [pendingPositions, setPendingPositions] = useState<Map<string, FloorPos>>(new Map())
-  const [isSaving, setIsSaving] = useState(false)
+  const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: 'floor-canvas', data: { type: 'floor-canvas' } })
+  const setCanvasRef = (el: HTMLDivElement | null) => { canvasRef.current = el; setDroppableRef(el) }
+  const [drag, setDrag] = useState<Drag | null>(null)
+  const [live, setLive] = useState<Rect | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showAreaMenu, setShowAreaMenu] = useState(false)
+  const [editingAreaId, setEditingAreaId] = useState<string | null>(null)
+  const [editingLabel, setEditingLabel] = useState('')
   const [roomW, setRoomW] = useState(floorLayout.room_width)
   const [roomH, setRoomH] = useState(floorLayout.room_height)
   const [snapGrid, setSnapGrid] = useState(floorLayout.snap_grid)
-
-  const isDirty = pendingPositions.size > 0
 
   useEffect(() => {
     setRoomW(floorLayout.room_width)
@@ -61,67 +89,141 @@ export default function FloorPlanCanvas({
     return shape === 'round' ? { w: ROUND_SIZE, h: ROUND_SIZE } : { w: RECT_W, h: RECT_H }
   }
 
-  function getPos(table: SeatingTable, index: number): FloorPos {
-    if (draggingId === table.id && tempPos) return tempPos
-    const pending = pendingPositions.get(table.id)
-    if (pending) return pending
-    if (table.pos_x != null && table.pos_y != null) return { x: table.pos_x, y: table.pos_y }
-    return defaultPos(index)
-  }
-
   function snap(val: number): number {
     if (snapGrid <= 0) return val
     return Math.round(val / snapGrid) * snapGrid
   }
 
-  function startDrag(e: React.PointerEvent, table: SeatingTable, index: number) {
+  function getTablePos(table: SeatingTable, index: number): FloorPos {
+    if (drag?.type === 'table' && drag.id === table.id && live) return { x: live.x, y: live.y }
+    if (table.pos_x != null && table.pos_y != null) return { x: table.pos_x, y: table.pos_y }
+    return defaultPos(index)
+  }
+
+  function getAreaRect(area: FloorArea): Rect {
+    if (live && drag && drag.id === area.id && (drag.type === 'areaMove' || drag.type === 'areaResize')) return live
+    return { x: area.x, y: area.y, w: area.w, h: area.h }
+  }
+
+  // ─── Drag / resize ─────────────────────────────────────────────────────────
+  function startTableDrag(e: React.PointerEvent, table: SeatingTable, index: number) {
     e.stopPropagation()
     const rect = canvasRef.current!.getBoundingClientRect()
-    const pos = getPos(table, index)
-    setDragOffset({ x: e.clientX - rect.left - pos.x, y: e.clientY - rect.top - pos.y })
-    setTempPos(pos)
-    setDraggingId(table.id)
+    const pos = getTablePos(table, index)
+    setDrag({ type: 'table', id: table.id, offX: e.clientX - rect.left - pos.x, offY: e.clientY - rect.top - pos.y })
+    setLive({ x: pos.x, y: pos.y, ...tableSize(table.shape) })
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  function startAreaMove(e: React.PointerEvent, area: FloorArea) {
+    if (editingAreaId === area.id) return
+    e.stopPropagation()
+    const rect = canvasRef.current!.getBoundingClientRect()
+    setDrag({ type: 'areaMove', id: area.id, offX: e.clientX - rect.left - area.x, offY: e.clientY - rect.top - area.y })
+    setLive({ x: area.x, y: area.y, w: area.w, h: area.h })
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+
+  function startAreaResize(e: React.PointerEvent, area: FloorArea) {
+    e.stopPropagation()
+    const rect = canvasRef.current!.getBoundingClientRect()
+    setDrag({ type: 'areaResize', id: area.id, px: e.clientX - rect.left, py: e.clientY - rect.top, w0: area.w, h0: area.h })
+    setLive({ x: area.x, y: area.y, w: area.w, h: area.h })
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
 
   function handlePointerMove(e: React.PointerEvent) {
-    if (!draggingId) return
-    const table = tables.find((t) => t.id === draggingId)
-    if (!table) return
-    const { w, h } = tableSize(table.shape)
+    if (!drag) return
     const rect = canvasRef.current!.getBoundingClientRect()
-    const rawX = e.clientX - rect.left - dragOffset.x
-    const rawY = e.clientY - rect.top - dragOffset.y
-    setTempPos({
-      x: Math.max(0, Math.min(roomW - w, snap(rawX))),
-      y: Math.max(0, Math.min(roomH - h, snap(rawY))),
-    })
+    const px = e.clientX - rect.left
+    const py = e.clientY - rect.top
+
+    if (drag.type === 'table') {
+      const table = tables.find((t) => t.id === drag.id)
+      if (!table) return
+      const { w, h } = tableSize(table.shape)
+      setLive({ x: clamp(snap(px - drag.offX), 0, roomW - w), y: clamp(snap(py - drag.offY), 0, roomH - h), w, h })
+    } else if (drag.type === 'areaMove') {
+      const area = floorAreas.find((a) => a.id === drag.id)
+      if (!area) return
+      setLive({ x: clamp(snap(px - drag.offX), 0, roomW - area.w), y: clamp(snap(py - drag.offY), 0, roomH - area.h), w: area.w, h: area.h })
+    } else {
+      const area = floorAreas.find((a) => a.id === drag.id)
+      if (!area) return
+      const w = clamp(snap(drag.w0 + (px - drag.px)), MIN_AREA, roomW - area.x)
+      const h = clamp(snap(drag.h0 + (py - drag.py)), MIN_AREA, roomH - area.y)
+      setLive({ x: area.x, y: area.y, w, h })
+    }
   }
 
   function handlePointerUp() {
-    if (draggingId && tempPos) {
-      const id = draggingId
-      const pos = tempPos
-      setPendingPositions((prev: Map<string, FloorPos>) => new Map(prev).set(id, pos))
+    if (drag && live) {
+      if (drag.type === 'table') {
+        const table = tables.find((t) => t.id === drag.id)
+        if (!table || table.pos_x !== live.x || table.pos_y !== live.y) {
+          onSavePositions([{ tableId: drag.id, x: live.x, y: live.y }])
+        }
+      } else if (drag.type === 'areaMove') {
+        const area = floorAreas.find((a) => a.id === drag.id)
+        if (area && (area.x !== live.x || area.y !== live.y)) {
+          onAreasChange(floorAreas.map((a) => a.id === drag.id ? { ...a, x: live.x, y: live.y } : a))
+        }
+      } else {
+        const area = floorAreas.find((a) => a.id === drag.id)
+        if (area && (area.w !== live.w || area.h !== live.h)) {
+          onAreasChange(floorAreas.map((a) => a.id === drag.id ? { ...a, w: live.w, h: live.h } : a))
+        }
+      }
     }
-    setDraggingId(null)
-    setTempPos(null)
+    setDrag(null)
+    setLive(null)
   }
 
-  async function handleSave() {
-    setIsSaving(true)
-    const positions = tables.map((t, i) => {
-      const pending = pendingPositions.get(t.id)
-      const pos = pending ?? (t.pos_x != null && t.pos_y != null ? { x: t.pos_x, y: t.pos_y } : defaultPos(i))
-      return { tableId: t.id, x: pos.x, y: pos.y }
-    })
-    await onSavePositions(positions)
-    setPendingPositions(new Map())
-    setIsSaving(false)
+  // ─── Area mutations ──────────────────────────────────────────────────────────
+  function addArea(type: FloorAreaType) {
+    onAreasChange([...floorAreas, newArea(type, roomW, roomH, snapGrid)])
+    setShowAreaMenu(false)
   }
 
-  function handleReset() {
-    setPendingPositions(new Map())
+  function deleteArea(id: string) {
+    onAreasChange(floorAreas.filter((a) => a.id !== id))
+  }
+
+  function duplicateArea(area: FloorArea) {
+    const copy: FloorArea = {
+      ...area,
+      id: crypto.randomUUID(),
+      x: clamp(area.x + 24, 0, roomW - area.w),
+      y: clamp(area.y + 24, 0, roomH - area.h),
+    }
+    onAreasChange([...floorAreas, copy])
+  }
+
+  function clearAllAreas() {
+    setShowAreaMenu(false)
+    if (floorAreas.length === 0) return
+    if (confirm(`Remove all ${floorAreas.length} area${floorAreas.length !== 1 ? 's' : ''}? This cannot be undone.`)) {
+      onAreasChange([])
+    }
+  }
+
+  function setAreaShape(id: string, shape: 'rectangle' | 'round') {
+    onAreasChange(floorAreas.map((a) => a.id === id ? { ...a, shape } : a))
+  }
+
+  function startEditLabel(area: FloorArea) {
+    setEditingAreaId(area.id)
+    setEditingLabel(area.label)
+  }
+
+  function commitLabel() {
+    if (editingAreaId) {
+      const id = editingAreaId
+      onAreasChange(floorAreas.map((a) =>
+        a.id === id ? { ...a, label: editingLabel.trim() || AREA_PRESETS[a.type].label } : a
+      ))
+    }
+    setEditingAreaId(null)
   }
 
   function saveSettings() {
@@ -137,7 +239,7 @@ export default function FloorPlanCanvas({
     return n
   }
 
-  if (tables.length === 0) {
+  if (totalTableCount === 0) {
     return (
       <main className="flex-1 flex items-center justify-center">
         <div className="text-center space-y-3">
@@ -160,30 +262,53 @@ export default function FloorPlanCanvas({
         <span className="text-xs text-event-muted">
           Snap: <strong className="text-gray-700">{snapGrid > 0 ? `${snapGrid}px` : 'off'}</strong>
         </span>
-        {isDirty && (
-          <span className="text-xs text-amber-600 font-medium">Unsaved changes</span>
+        {saveStatus === 'saving' && (
+          <span className="text-xs text-event-muted flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Saving…</span>
+        )}
+        {saveStatus === 'saved' && (
+          <span className="text-xs text-green-600 flex items-center gap-1"><Check size={12} /> All changes saved</span>
+        )}
+        {saveStatus === 'error' && (
+          <span className="text-xs text-red-600 font-medium flex items-center gap-1"><AlertTriangle size={12} /> Save failed — check connection</span>
         )}
         <div className="ml-auto flex items-center gap-2 relative">
-          {isDirty && (
+          {/* Add area */}
+          <div className="relative">
             <button
-              onClick={handleReset}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-event-border rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all text-gray-600"
-              title="Discard unsaved changes"
+              onClick={() => { setShowAreaMenu((v) => !v); setShowSettings(false) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-event-border rounded-lg hover:border-gold-400 hover:bg-gold-50 transition-all"
             >
-              <RotateCcw size={14} /> Reset
+              <Plus size={14} /> Add area
             </button>
-          )}
-          <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${
-              isDirty
-                ? 'bg-gold-500 text-white hover:bg-gold-600 border border-gold-500'
-                : 'border border-event-border text-gray-500 hover:border-gold-400 hover:bg-gold-50'
-            }`}
-          >
-            <Save size={14} /> {isSaving ? 'Saving…' : 'Save layout'}
-          </button>
+            {showAreaMenu && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl border border-event-border shadow-xl p-1.5 z-50 grid grid-cols-2 gap-1">
+                {AREA_TYPE_LIST.map((type) => {
+                  const p = AREA_PRESETS[type]
+                  const Icon = p.icon
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => addArea(type)}
+                      className="flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-lg hover:bg-gray-50 text-left transition-colors"
+                    >
+                      <span className="flex items-center justify-center w-5 h-5 rounded shrink-0" style={{ background: p.bg, color: p.text }}>
+                        <Icon size={12} />
+                      </span>
+                      <span className="text-gray-700 truncate">{p.label}</span>
+                    </button>
+                  )
+                })}
+                {floorAreas.length > 0 && (
+                  <button
+                    onClick={clearAllAreas}
+                    className="col-span-2 mt-1 flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-lg text-red-500 hover:bg-red-50 border-t border-event-border pt-2 transition-colors"
+                  >
+                    <Eraser size={13} /> Clear all areas ({floorAreas.length})
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => window.print()}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-event-border rounded-lg hover:border-gold-400 hover:bg-gold-50 transition-all"
@@ -191,7 +316,7 @@ export default function FloorPlanCanvas({
             <Printer size={14} /> Print
           </button>
           <button
-            onClick={() => setShowSettings((v) => !v)}
+            onClick={() => { setShowSettings((v) => !v); setShowAreaMenu(false) }}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-event-border rounded-lg hover:border-gold-400 hover:bg-gold-50 transition-all"
           >
             <Settings size={14} /> Room settings
@@ -232,35 +357,134 @@ export default function FloorPlanCanvas({
       {/* Canvas */}
       <div className="flex-1 overflow-auto p-4">
         <div
-          ref={canvasRef}
-          className="relative rounded-xl border-2 border-gold-100 shadow-inner floor-plan-canvas"
+          ref={setCanvasRef}
+          className={`relative rounded-xl border-2 shadow-inner floor-plan-canvas transition-colors ${isOver ? 'border-gold-400' : 'border-gold-100'}`}
           style={{ width: roomW, height: roomH, background: '#faf7f2', minWidth: roomW, minHeight: roomH, ...gridBg }}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerLeave={handlePointerUp}
         >
+          {tables.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" data-print-hide>
+              <p className="text-sm text-event-muted bg-white/70 px-4 py-2 rounded-lg border border-dashed border-gold-200">
+                Drag a table from the list to place it on the floor plan.
+              </p>
+            </div>
+          )}
+
+          {/* Areas layer — rendered first so tables sit on top */}
+          {floorAreas.map((area) => {
+            const preset = AREA_PRESETS[area.type]
+            const Icon = preset.icon
+            const r = getAreaRect(area)
+            const isRound = area.shape === 'round'
+            const isActive = drag?.id === area.id
+            const editing = editingAreaId === area.id
+            return (
+              <div
+                key={area.id}
+                className={`group/area absolute border-2 border-dashed select-none flex flex-col items-center justify-center gap-1 text-center
+                  ${isRound ? 'rounded-full' : 'rounded-xl'} ${editing ? 'cursor-text' : 'cursor-grab'} ${isActive ? 'cursor-grabbing' : ''}`}
+                style={{
+                  left: r.x, top: r.y, width: r.w, height: r.h,
+                  background: preset.bg, borderColor: preset.border, color: preset.text,
+                  zIndex: isActive ? 15 : 0,
+                }}
+                onPointerDown={(e) => startAreaMove(e, area)}
+                onDoubleClick={(e) => { e.stopPropagation(); startEditLabel(area) }}
+              >
+                <Icon size={18} className="pointer-events-none opacity-80" />
+                {editing ? (
+                  <input
+                    autoFocus
+                    value={editingLabel}
+                    onChange={(e) => setEditingLabel(e.target.value)}
+                    onBlur={commitLabel}
+                    onKeyDown={(e) => { if (e.key === 'Enter') commitLabel(); if (e.key === 'Escape') setEditingAreaId(null) }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="w-[85%] text-center text-xs font-semibold bg-white/90 border border-current rounded px-1 py-0.5 outline-none"
+                    style={{ color: preset.text }}
+                  />
+                ) : (
+                  <span className="text-xs font-semibold px-2 truncate max-w-full pointer-events-none">{area.label}</span>
+                )}
+
+                {/* Hover controls: shape toggle + delete */}
+                <div
+                  className="absolute -top-3 left-1/2 -translate-x-1/2 opacity-0 group-hover/area:opacity-100 transition-opacity z-30 flex items-center bg-white border border-event-border rounded-lg shadow-sm overflow-hidden"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => setAreaShape(area.id, 'rectangle')}
+                    className={`px-1.5 py-1 ${!isRound ? 'bg-gold-500 text-white' : 'text-gray-400 hover:bg-gold-50'}`}
+                    title="Rectangle"
+                  >
+                    <Square size={11} />
+                  </button>
+                  <button
+                    onClick={() => setAreaShape(area.id, 'round')}
+                    className={`px-1.5 py-1 border-l border-event-border ${isRound ? 'bg-gold-500 text-white' : 'text-gray-400 hover:bg-gold-50'}`}
+                    title="Round"
+                  >
+                    <Circle size={11} />
+                  </button>
+                  <button
+                    onClick={() => duplicateArea(area)}
+                    className="px-1.5 py-1 border-l border-event-border text-gray-400 hover:bg-gold-50 hover:text-gold-600"
+                    title="Duplicate area"
+                  >
+                    <Copy size={11} />
+                  </button>
+                  <button
+                    onClick={() => deleteArea(area.id)}
+                    className="px-1.5 py-1 border-l border-event-border text-gray-400 hover:bg-red-50 hover:text-red-500"
+                    title="Delete area"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+
+                {/* Resize handle */}
+                <div
+                  onPointerDown={(e) => startAreaResize(e, area)}
+                  className="absolute bottom-0 right-0 w-4 h-4 opacity-0 group-hover/area:opacity-100 transition-opacity cursor-se-resize"
+                  style={{ touchAction: 'none' }}
+                >
+                  <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 rounded-sm" style={{ borderColor: preset.text }} />
+                </div>
+              </div>
+            )
+          })}
+
           {tables.map((table, i) => {
             const isRound = table.shape === 'round'
             const { w, h } = tableSize(table.shape)
-            const pos = getPos(table, i)
+            const pos = getTablePos(table, i)
             const occ = getOccupancy(table)
             const seatsPerRow = Math.ceil(table.capacity / 2)
-            const hasPending = pendingPositions.has(table.id)
 
             return (
               <div
                 key={table.id}
                 className={`group absolute border-2 select-none transition-shadow
                   ${isRound ? 'rounded-full' : 'rounded-xl'}
-                  ${draggingId === table.id
+                  ${drag?.type === 'table' && drag.id === table.id
                     ? 'shadow-xl z-10 cursor-grabbing'
                     : 'shadow-card hover:shadow-card-hover cursor-grab z-0 hover:z-20'}
                   ${occ > 0 ? 'border-gold-300 bg-white' : 'border-gray-200 bg-white'}
-                  ${hasPending ? 'ring-2 ring-amber-400 ring-offset-1' : ''}
                 `}
                 style={{ left: pos.x, top: pos.y, width: w, height: h }}
-                onPointerDown={(e) => startDrag(e, table, i)}
+                onPointerDown={(e) => startTableDrag(e, table, i)}
               >
+                {/* Remove from floor plan (send back to the table list) */}
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={() => onUnplaceTable(table.id)}
+                  className="absolute -top-2 -right-2 opacity-0 group-hover:opacity-100 transition-opacity z-30 bg-white border border-event-border rounded-full p-0.5 shadow-sm text-gray-400 hover:text-red-500"
+                  title="Remove from floor plan"
+                >
+                  <X size={12} />
+                </button>
                 {isRound ? (
                   <div className="absolute inset-0">
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 pointer-events-none">
@@ -269,9 +493,9 @@ export default function FloorPlanCanvas({
                     </div>
                     {Array.from({ length: table.capacity }, (_, s) => {
                       const angle = (s / table.capacity) * 2 * Math.PI - Math.PI / 2
-                      const r = ROUND_SIZE / 2 - 10
-                      const cx = ROUND_SIZE / 2 + r * Math.cos(angle)
-                      const cy = ROUND_SIZE / 2 + r * Math.sin(angle)
+                      const rad = ROUND_SIZE / 2 - 10
+                      const cx = ROUND_SIZE / 2 + rad * Math.cos(angle)
+                      const cy = ROUND_SIZE / 2 + rad * Math.sin(angle)
                       const seatKey = `${table.id}::${s + 1}`
                       const guestId = assignmentBySeat.get(seatKey)
                       const guestName = guestId ? guestMap.get(guestId)?.name : undefined
