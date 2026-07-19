@@ -8,11 +8,11 @@ import {
 import { arrayMove } from '@dnd-kit/sortable'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import type { ChairityEvent, Guest, SeatingTable, SeatAssignment, DragData, FloorLayout } from '@/types'
+import type { ChairityEvent, Guest, SeatingTable, SeatAssignment, DragData, FloorLayout, FloorArea } from '@/types'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import GuestSidebar from './GuestSidebar'
 import TableCanvas from './TableCanvas'
-import FloorPlanCanvas from './FloorPlanCanvas'
+import FloorPlanCanvas, { type FloorSaveStatus } from './FloorPlanCanvas'
 import EditorHeader from './EditorHeader'
 import TableConfigModal from './TableConfigModal'
 import CSVImport from './CSVImport'
@@ -44,6 +44,17 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
   const [floorLayout, setFloorLayout] = useState<FloorLayout>(
     event.floor_layout ?? { room_width: 1200, room_height: 800, snap_grid: 40 }
   )
+  const [floorAreas, setFloorAreas] = useState<FloorArea[]>(event.floor_areas ?? [])
+  const [floorSaveStatus, setFloorSaveStatus] = useState<FloorSaveStatus>('idle')
+
+  function reportSaveDone(error: unknown) {
+    if (error) {
+      console.error('floor plan save failed:', error)
+      setFloorSaveStatus('error')
+    } else {
+      setFloorSaveStatus('saved')
+    }
+  }
 
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -251,22 +262,34 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
       const upd = positions.find((p) => p.tableId === t.id)
       return upd ? { ...t, pos_x: upd.x, pos_y: upd.y } : t
     }))
-    await Promise.all(
+    setFloorSaveStatus('saving')
+    const results = await Promise.all(
       positions.map(({ tableId, x, y }) =>
         supabase.from('seating_tables').update({ pos_x: x, pos_y: y }).eq('id', tableId)
       )
     )
+    reportSaveDone(results.find((r) => r.error)?.error ?? null)
   }
 
   async function handleShapeChange(tableId: string, shape: 'rectangle' | 'round') {
     setTables((prev) => prev.map((t) => t.id === tableId ? { ...t, shape } : t))
-    await supabase.from('seating_tables').update({ shape }).eq('id', tableId)
+    setFloorSaveStatus('saving')
+    const { error } = await supabase.from('seating_tables').update({ shape }).eq('id', tableId)
+    reportSaveDone(error)
   }
 
   async function handleFloorLayoutChange(layout: FloorLayout) {
     setFloorLayout(layout)
+    setFloorSaveStatus('saving')
     const { error } = await supabase.from('events').update({ floor_layout: layout }).eq('id', event.id)
-    if (error) console.error('floor layout save failed:', error.message)
+    reportSaveDone(error)
+  }
+
+  async function handleAreasChange(areas: FloorArea[]) {
+    setFloorAreas(areas)
+    setFloorSaveStatus('saving')
+    const { error } = await supabase.from('events').update({ floor_areas: areas }).eq('id', event.id)
+    reportSaveDone(error)
   }
 
   const activeDragGuest = activeDrag?.guestId ? guestMap.get(activeDrag.guestId) : null
@@ -323,11 +346,14 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
           <FloorPlanCanvas
             tables={tables}
             floorLayout={floorLayout}
+            floorAreas={floorAreas}
             guestMap={guestMap}
             assignmentBySeat={assignmentBySeat}
+            saveStatus={floorSaveStatus}
             onSavePositions={handleSaveFloorPositions}
             onShapeChange={handleShapeChange}
             onFloorLayoutChange={handleFloorLayoutChange}
+            onAreasChange={handleAreasChange}
             onOpenTableConfig={() => setShowTableConfig(true)}
           />
         )}
