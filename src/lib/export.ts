@@ -1,10 +1,17 @@
-import type { Guest, SeatingTable, SeatAssignment } from '@/types'
+import type { Guest, SeatingTable, SeatAssignment, FloorLayout, FloorArea } from '@/types'
 
 interface ExportData {
   eventName: string
   tables: SeatingTable[]
   guests: Guest[]
   assignments: SeatAssignment[]
+}
+
+export interface FloorPlanExportData {
+  eventName: string
+  tables: SeatingTable[]
+  floorLayout: FloorLayout
+  floorAreas: FloorArea[]
 }
 
 export function exportToExcel({ eventName, tables, guests, assignments }: ExportData) {
@@ -50,9 +57,9 @@ export function exportToExcel({ eventName, tables, guests, assignments }: Export
 }
 
 export function exportToPDF({ eventName, tables, guests, assignments }: ExportData) {
-  import('jspdf').then(async ({ default: jsPDF }) => {
-    await import('jspdf-autotable')
-    const doc = new (jsPDF as any)({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  import('jspdf').then(async ({ jsPDF }) => {
+    const { autoTable } = await import('jspdf-autotable')
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
     const guestMap = new Map(guests.map((g) => [g.id, g.name]))
     const assignmentBySeat = new Map(assignments.map((a) => [`${a.table_id}-${a.seat_number}`, a.guest_id]))
@@ -75,7 +82,7 @@ export function exportToPDF({ eventName, tables, guests, assignments }: ExportDa
       }
     }
 
-    ;(doc as any).autoTable({
+    autoTable(doc, {
       startY: 35,
       head: [['Table', 'Seat', 'Guest']],
       body: tableBody,
@@ -93,7 +100,7 @@ export function exportToPDF({ eventName, tables, guests, assignments }: ExportDa
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(12)
       doc.text('Unassigned Guests', 14, finalY)
-      ;(doc as any).autoTable({
+      autoTable(doc, {
         startY: finalY + 4,
         head: [['Guest']],
         body: unassigned.map((g) => [g.name]),
@@ -104,5 +111,97 @@ export function exportToPDF({ eventName, tables, guests, assignments }: ExportDa
     }
 
     doc.save(`${eventName} - Seating.pdf`)
+  })
+}
+
+const ROUND_PX = 130
+const RECT_W_PX = 160
+const RECT_H_PX = 110
+
+export function exportFloorPlanToPDF({ eventName, tables, floorLayout, floorAreas }: FloorPlanExportData) {
+  import('jspdf').then(({ jsPDF }) => {
+    const { room_width: roomW, room_height: roomH } = floorLayout
+
+    // Use landscape for wide rooms, portrait for tall ones
+    const isLandscape = roomW >= roomH
+    const pageW = isLandscape ? 297 : 210   // A4 mm
+    const pageH = isLandscape ? 210 : 297
+    const margin = 12
+    const titleH = 8
+    const usableW = pageW - 2 * margin
+    const usableH = pageH - 2 * margin - titleH
+
+    // Scale so the entire room fits on one page; split vertically if needed
+    const scaleByW = usableW / roomW
+    const scaleByH = usableH / roomH
+    const scale = Math.min(scaleByW, scaleByH)   // mm per px
+
+    const px = (v: number) => v * scale
+
+    const doc = new jsPDF({
+      orientation: isLandscape ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    })
+
+    // Title
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(60, 50, 30)
+    doc.text(`${eventName} — Floor Plan`, margin, margin + 4)
+
+    const ox = margin              // canvas origin x in mm
+    const oy = margin + titleH     // canvas origin y in mm
+
+    // --- Floor areas ---
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(6)
+    for (const area of floorAreas) {
+      const x = ox + px(area.x)
+      const y = oy + px(area.y)
+      const w = px(area.w)
+      const h = px(area.h)
+
+      doc.setFillColor(245, 238, 220)
+      doc.setDrawColor(180, 148, 80)
+      doc.setLineWidth(0.3)
+
+      if (area.shape === 'round') {
+        doc.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 'FD')
+      } else {
+        doc.roundedRect(x, y, w, h, 1, 1, 'FD')
+      }
+
+      doc.setTextColor(110, 80, 30)
+      doc.text(area.label, x + w / 2, y + h / 2, { align: 'center', baseline: 'middle' })
+    }
+
+    // --- Tables ---
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(7)
+    for (const table of tables) {
+      if (table.pos_x == null || table.pos_y == null) continue
+
+      const tx = ox + px(table.pos_x)
+      const ty = oy + px(table.pos_y)
+
+      doc.setFillColor(255, 253, 248)
+      doc.setDrawColor(180, 140, 60)
+      doc.setLineWidth(0.5)
+      doc.setTextColor(30, 20, 5)
+
+      if (table.shape === 'round') {
+        const r = px(ROUND_PX) / 2
+        doc.circle(tx + r, ty + r, r, 'FD')
+        doc.text(table.name, tx + r, ty + r, { align: 'center', baseline: 'middle' })
+      } else {
+        const tw = px(RECT_W_PX)
+        const th = px(RECT_H_PX)
+        doc.rect(tx, ty, tw, th, 'FD')
+        doc.text(table.name, tx + tw / 2, ty + th / 2, { align: 'center', baseline: 'middle' })
+      }
+    }
+
+    doc.save(`${eventName} - Floor Plan.pdf`)
   })
 }

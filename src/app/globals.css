@@ -193,19 +193,30 @@ body {
 [data-theme="dark"] textarea::placeholder { color: rgb(115 105 88); }
 
 /* ============================================================
-   Print: show only the floor plan canvas
+   Print: show only the floor plan canvas, multi-page aware
    ============================================================ */
 @media print {
-  body { background: white; }
+  body { background: white; overflow: visible !important; height: auto !important; }
   [data-print-hide] { display: none !important; }
-  [data-print-show] { display: block !important; }
-  .floor-plan-canvas {
-    position: fixed !important;
-    inset: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
+  /* The <main> wrapper around the floor plan canvas */
+  [data-print-show] {
+    display: flex !important;
+    flex-direction: column !important;
     overflow: visible !important;
-    page-break-inside: avoid;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  /* The inner scroll container — must not clip */
+  .floor-plan-print-scroll {
+    overflow: visible !important;
+    height: auto !important;
+    flex: none !important;
+    padding: 8px !important;
+  }
+  /* The canvas itself — zoom is applied via inline style by JS before print */
+  .floor-plan-canvas {
+    break-inside: auto;
+    page-break-inside: auto;
   }
 }
 

@@ -18,6 +18,7 @@ import EditorHeader from './EditorHeader'
 import TableConfigModal from './TableConfigModal'
 import CSVImport from './CSVImport'
 import ShareModal from './ShareModal'
+import { exportFloorPlanToPDF } from '@/lib/export'
 
 interface Props {
   event: ChairityEvent
@@ -412,6 +413,7 @@ export default function EditorLayout({ event, initialGuests, initialTables, init
               onFloorLayoutChange={handleFloorLayoutChange}
               onAreasChange={handleAreasChange}
               onOpenTableConfig={() => setShowTableConfig(true)}
+              onExportPDF={() => exportFloorPlanToPDF({ eventName, tables: placedTables, floorLayout, floorAreas })}
             />
           </div>
         )}

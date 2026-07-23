@@ -107,7 +107,7 @@ export default function EditorHeader({
         title="Grid view"
       >
         <LayoutGrid size={13} />
-        <span className="hidden md:inline">Grid</span>
+        <span className="hidden md:inline">Seating Chart</span>
       </button>
       <button
         onClick={() => onViewChange('floor')}

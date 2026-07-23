@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import {
-  Settings, Circle, Square, Printer, Plus, Check, AlertTriangle, Loader2, Trash2, Copy, Eraser, X,
+  Settings, Circle, Square, Printer, Plus, Check, AlertTriangle, Loader2, Trash2, Copy, Eraser, X, Download,
 } from 'lucide-react'
 import type { Guest, SeatingTable, FloorLayout, FloorArea, FloorAreaType } from '@/types'
 import { AREA_PRESETS, AREA_TYPE_LIST, newArea } from '@/lib/floorAreas'
@@ -55,11 +55,13 @@ interface Props {
   onFloorLayoutChange: (layout: FloorLayout) => void
   onAreasChange: (areas: FloorArea[]) => void
   onOpenTableConfig: () => void
+  onExportPDF: () => void
 }
 
 export default function FloorPlanCanvas({
   tables, totalTableCount, floorLayout, floorAreas, guestMap, assignmentBySeat, saveStatus,
   onSavePositions, onShapeChange, onUnplaceTable, onFloorLayoutChange, onAreasChange, onOpenTableConfig,
+  onExportPDF,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({ id: 'floor-canvas', data: { type: 'floor-canvas' } })
@@ -103,6 +105,22 @@ export default function FloorPlanCanvas({
   function getAreaRect(area: FloorArea): Rect {
     if (live && drag && drag.id === area.id && (drag.type === 'areaMove' || drag.type === 'areaResize')) return live
     return { x: area.x, y: area.y, w: area.w, h: area.h }
+  }
+
+  function handlePrint() {
+    const A4_WIDTH_PX = 793 // ~A4 portrait width at 96 dpi
+    const scale = Math.min(1, A4_WIDTH_PX / roomW)
+    const canvas = canvasRef.current
+    if (canvas && scale < 1) {
+      canvas.style.zoom = String(scale)
+    }
+    // Two rAF calls ensure the browser has repainted at the new zoom before the dialog opens.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print()
+        if (canvas) canvas.style.zoom = ''
+      })
+    })
   }
 
   // ─── Drag / resize ─────────────────────────────────────────────────────────
@@ -310,10 +328,16 @@ export default function FloorPlanCanvas({
             )}
           </div>
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-event-border rounded-lg hover:border-gold-400 hover:bg-gold-50 transition-all"
           >
             <Printer size={14} /> Print
+          </button>
+          <button
+            onClick={onExportPDF}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-event-border rounded-lg hover:border-gold-400 hover:bg-gold-50 transition-all"
+          >
+            <Download size={14} /> Export PDF
           </button>
           <button
             onClick={() => { setShowSettings((v) => !v); setShowAreaMenu(false) }}
@@ -355,7 +379,7 @@ export default function FloorPlanCanvas({
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 overflow-auto p-4 floor-plan-print-scroll">
         <div
           ref={setCanvasRef}
           className={`relative rounded-xl border-2 shadow-inner floor-plan-canvas transition-colors ${isOver ? 'border-gold-400' : 'border-gold-100'}`}
